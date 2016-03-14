@@ -1,32 +1,22 @@
-def run_tmux(cmd_and_args, input=''):
-    import subprocess
-    if isinstance(cmd_and_args, str):
-        import shlex
-        cmd_and_args = shlex.split(cmd_and_args)
-    full_cmd = ['tmux'] + map(str, cmd_and_args)
-    import pipes
-    print 'Running ' + ' '.join(map(pipes.quote, map(str, full_cmd)))
-    proc = subprocess.Popen(full_cmd,
-                     stdout=subprocess.PIPE,
-                     stdin=subprocess.PIPE,
-                     stderr=subprocess.STDOUT)
-    out, _ = proc.communicate(input=input)
-    return out
+import utils
+
+def _run(command, **kwargs):
+    return utils.run_command(['tmux'] + command, **kwargs)
 
 def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
     cursor_x = int(get_variable('cursor_x'))
     cursor_y = int(get_variable('cursor_y'))
     pane_height = int(get_variable('pane_height'))
     pane_width = int(get_variable('pane_width'))
-    print 'pane_height {} cursor_y {}'.format(pane_height, cursor_y)
+    # print 'pane_height {} cursor_y {}'.format(pane_height, cursor_y)
     start = -max_lines if max_lines >= 0 else '-'
     cmd = ['capture-pane', '-J']
     cmd += ['-S', start]
-    cmd += ['-E', cursor_y]
-    run_tmux(cmd)
+    # cmd += ['-E', cursor_y]
+    _run(cmd)
 
-    out = run_tmux(['save-buffer', '-'])
-    run_tmux(['delete-buffer'])
+    out = _run(['save-buffer', '-'])
+    _run(['delete-buffer'])
 
     trim_lines = pane_height - cursor_y - 1
     if (trim_lines > 0) or max_lines > 0 or till_cursor or splitlines:
@@ -45,20 +35,20 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
     return out
 
 def insert_text(text):
-    run_tmux(['load-buffer', '-'], input=text)
-    run_tmux(['paste-buffer'])
-    run_tmux(['delete-buffer'])
+    _run(['load-buffer', '-'], input=text)
+    _run(['paste-buffer'])
+    _run(['delete-buffer'])
 
 def backspace(count=1):
     keys = ['BSpace'] * count
-    run_tmux(['send-keys'] + keys)
+    _run(['send-keys'] + keys)
 
 def _display_message(msg, stdout=False):
     cmd = ['display-message']
     if stdout:
         cmd.append('-p')
     cmd.append(msg)
-    return run_tmux(cmd)
+    return _run(cmd)
 
 def print_message(msg):
     return _display_message(msg, stdout=True)
@@ -76,12 +66,18 @@ def display_message(msg, timeout=None):
 def get_variable(var_name):
     return print_message('#{%s}' % var_name)
 
-def tmux_bind_key(key, cmd):
-    run_tmux(['bind-key', key] + cmd)
+def tmux_bind_key(key, cmd=None, no_prefix=False, unbind=False):
+    command = ['bind-key' if not unbind else 'unbind-key']
+    if no_prefix:
+        command.append('-n')
+    command.append(key)
+    if not unbind:
+        command.extend(cmd)
+    _run(command)
 
 def get_option(opt_name):
-    return run_tmux(['show-options', '-g', '-v', opt_name]).strip()
+    return _run(['show-options', '-g', '-v', opt_name]).strip()
 
 def set_option(name, value):
-    return run_tmux(['set-option', '-g'] + (['-u', name] if value is None else
+    return _run(['set-option', '-g'] + (['-u', name] if value is None else
                                             [name, value]))
