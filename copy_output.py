@@ -22,7 +22,13 @@ def main():
                 out = ''.join(itertools.islice(lines, i, last))
                 with open(os.path.join(common.get_workdir(), 'output.txt'), 'w') as f:
                     f.write(out)
+
+                import sys
+                # prevent pyperclip from using Gtk/Qt clipboard
+                sys.modules['gtk'] = None
+                sys.modules['PyQt4'] = None
                 import pyperclip
+
                 pyperclip.copy(out)
                 break
             i -= len(patterns)
