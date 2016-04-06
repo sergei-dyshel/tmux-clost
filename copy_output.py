@@ -5,9 +5,12 @@ import common
 import itertools
 import os.path
 
+DEFAULT_MAX_LINES = 10000
+
 def main():
     config = common.get_config()
-    lines = tmux.capture_pane(max_lines=-1, till_cursor=True, splitlines=True)
+    max_lines = config.get('max_lines', DEFAULT_MAX_LINES)
+    lines = tmux.capture_pane(max_lines=max_lines, till_cursor=True, splitlines=True)
     ctx_name, ctx_conf = common.find_context(lines, config)
     if ctx_name is None:
         raise Exception('Matching context not found')
@@ -15,7 +18,7 @@ def main():
     last = None
     i = len(lines) - 2 * len(patterns)
     while i >= 0:
-        if common.match_lines(lines, i, patterns):
+        if i == 0 or common.match_lines(lines, i, patterns):
             if last is not None:
                 tmux.display_message(
                     'copied {} lines (context: {})'.format(last - i, ctx_name))
