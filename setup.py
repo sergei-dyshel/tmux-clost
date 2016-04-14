@@ -23,7 +23,7 @@ def bind_enter():
     workdir = common.get_workdir()
     if not common.get_config_var('save_to_history'):
         return
-    shell_cmd = ['run-shell', '{} >{}/last.log 2>&1'.format(
+    shell_cmd = ['run-shell', '-b', '{} >{}/last.log 2>&1'.format(
                 script_path('save_to_history.py'), workdir)]
     send_enter_cmd = ['send-keys', 'Enter']
     cmd = shell_cmd + ['\;'] + send_enter_cmd
