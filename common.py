@@ -66,14 +66,14 @@ def _find_context(lines, config):
             return ctx_name, ctx_conf
     return None, None
 
-def get_context(config):
+def get_context(config, silent=False):
     max_prompt_lines = max(len(context['patterns'])
                            for context in config['contexts'].itervalues())
     lines = tmux.capture_pane(max_lines=max_prompt_lines,
                               till_cursor=True,
                               splitlines=True)
     ctx_name, ctx_conf = _find_context(lines, config)
-    if ctx_name is None:
+    if ctx_name is None and not silent:
         raise Exception('Matching context not found')
     return ctx_name, ctx_conf
 
