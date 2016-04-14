@@ -5,6 +5,7 @@ import common
 import os.path
 import sys
 import os
+import utils
 
 def script_path(name):
     return os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), name))
@@ -31,12 +32,23 @@ def bind_enter():
 def unbind_enter():
     return tmux.tmux_bind_key('Enter', no_prefix=True, unbind=True)
 
+def run_fzf(input):
+    unbind_enter()
+    try:
+        line = utils.run_command(
+            ['fzf-tmux', '-d', '20%', '--no-sort'],
+            input=input)
+    except Exception:
+        bind_enter()
+        raise
+    line = line.strip()
+    return line
+
 def main():
     bind_key_to_function('copy_output')
     bind_key_to_function('search_history')
+    bind_key_to_function('insert_snippet')
     bind_enter()
-
-    # config_file = common.get_config_var('config_file', mandatory=True)
 
 if __name__ == '__main__':
     common.wrap_main(main)

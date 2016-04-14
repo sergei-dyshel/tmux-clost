@@ -8,22 +8,10 @@ import setup
 
 def main():
     config = common.get_config()
-    max_prompt_lines = max(len(context['patterns'])
-                           for context in config['contexts'].itervalues())
-    lines = tmux.capture_pane(max_lines=max_prompt_lines,
-                              till_cursor=True,
-                              splitlines=True)
-    ctx_name, ctx_conf = common.find_context(lines, config)
-    if ctx_name is None:
-        raise Exception('Matching context not found')
+    ctx_name, ctx_conf = common.get_context(config)
 
     all_history = history.load_history(ctx_name)
-    setup.unbind_enter()
-    line = utils.run_command(
-        ['fzf-tmux', '-d', '20%', '--no-sort'],
-        input=all_history)
-    setup.bind_enter()
-    line = line.strip()
+    line = setup.run_fzf(all_history)
     if line:
         tmux.insert_text(line)
 

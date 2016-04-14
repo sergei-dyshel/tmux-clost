@@ -59,12 +59,23 @@ def match_lines(lines, index, patterns):
             return False
     return True
 
-def find_context(lines, config):
+def _find_context(lines, config):
     for ctx_name, ctx_conf in config['contexts'].iteritems():
         patterns = ctx_conf['patterns']
         if match_lines(lines, len(lines) - len(patterns), patterns):
             return ctx_name, ctx_conf
     return None, None
+
+def get_context(config):
+    max_prompt_lines = max(len(context['patterns'])
+                           for context in config['contexts'].itervalues())
+    lines = tmux.capture_pane(max_lines=max_prompt_lines,
+                              till_cursor=True,
+                              splitlines=True)
+    ctx_name, ctx_conf = _find_context(lines, config)
+    if ctx_name is None:
+        raise Exception('Matching context not found')
+    return ctx_name, ctx_conf
 
 def get_prompt_input(config, last_prompt_pattern):
     import re

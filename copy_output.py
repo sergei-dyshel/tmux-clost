@@ -9,11 +9,10 @@ DEFAULT_MAX_LINES = 10000
 
 def main():
     config = common.get_config()
+    ctx_name, ctx_conf = common.get_context(config)
+
     max_lines = config.get('max_lines', DEFAULT_MAX_LINES)
     lines = tmux.capture_pane(max_lines=max_lines, till_cursor=True, splitlines=True)
-    ctx_name, ctx_conf = common.find_context(lines, config)
-    if ctx_name is None:
-        raise Exception('Matching context not found')
     patterns = ctx_conf['patterns']
     last = None
     i = len(lines) - 2 * len(patterns)
