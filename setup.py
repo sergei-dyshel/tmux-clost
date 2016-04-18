@@ -38,9 +38,8 @@ def run_fzf(input):
         line = utils.run_command(
             ['fzf-tmux', '-d', '20%', '--no-sort'],
             input=input)
-    except Exception:
+    finally:
         bind_enter()
-        raise
     line = line.strip()
     return line
 

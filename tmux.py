@@ -36,8 +36,7 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
 
 def insert_text(text):
     _run(['load-buffer', '-'], input=text)
-    _run(['paste-buffer'])
-    _run(['delete-buffer'])
+    _run(['paste-buffer', '-d', '-r'])
 
 def backspace(count=1):
     keys = ['BSpace'] * count
