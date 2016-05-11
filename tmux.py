@@ -38,9 +38,11 @@ def insert_text(text):
     _run(['load-buffer', '-'], input=text)
     _run(['paste-buffer', '-d', '-r'])
 
-def backspace(count=1):
-    keys = ['BSpace'] * count
+def send_keys(keys):
     _run(['send-keys'] + keys)
+
+def backspace(count=1):
+    send_keys(['BSpace'] * count)
 
 def _display_message(msg, stdout=False):
     cmd = ['display-message']

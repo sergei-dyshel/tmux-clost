@@ -25,9 +25,7 @@ def bind_enter():
         return
     shell_cmd = ['run-shell', '-b', '{} >{}/last.log 2>&1'.format(
                 script_path('save_to_history.py'), workdir)]
-    send_enter_cmd = ['send-keys', 'Enter']
-    cmd = shell_cmd + ['\;'] + send_enter_cmd
-    tmux.tmux_bind_key('Enter', cmd, no_prefix=True)
+    tmux.tmux_bind_key('Enter', shell_cmd, no_prefix=True)
 
 def unbind_enter():
     return tmux.tmux_bind_key('Enter', no_prefix=True, unbind=True)
