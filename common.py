@@ -94,6 +94,9 @@ def run_command(command, input=''):
                      stdout=subprocess.PIPE,
                      stdin=subprocess.PIPE,
                      stderr=subprocess.STDOUT)
-    out, _ = proc.communicate(input=input)
+    out, err = proc.communicate(input=input)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError('{} exited with status {}'.format(
+            command[0], proc.returncode))
     return out
 
