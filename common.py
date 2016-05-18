@@ -1,4 +1,7 @@
 import tmux
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
 
 ERROR_TIMEOUT = 5000
 

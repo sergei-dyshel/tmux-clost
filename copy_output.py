@@ -31,7 +31,10 @@ def main():
                 sys.modules['PyQt4'] = None
                 import pyperclip
 
-                pyperclip.copy(out)
+                # fixes problems with improper characters (such as line endings)
+                out_utf8 = unicode(out, encoding='utf8', errors='replace')
+
+                pyperclip.copy(out_utf8)
                 break
             i -= len(patterns)
         else:
