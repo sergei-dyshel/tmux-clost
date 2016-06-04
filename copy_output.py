@@ -32,7 +32,7 @@ def main():
                 import pyperclip
 
                 # fixes problems with improper characters (such as line endings)
-                out_utf8 = unicode(out, encoding='utf8', errors='replace')
+                out_utf8 = unicode(out, encoding='utf8', errors='ignore')
 
                 pyperclip.copy(out_utf8)
                 break
