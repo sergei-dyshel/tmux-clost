@@ -6,7 +6,7 @@ import history
 import utils
 import setup
 
-def main():
+def main(argv):
     config = common.get_config()
     ctx_name, ctx_conf = common.get_context(config)
 

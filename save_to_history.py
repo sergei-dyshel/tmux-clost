@@ -4,7 +4,7 @@ import history
 import common
 import tmux
 
-def main():
+def main(argv):
     config = common.get_config()
     ctx_name, ctx_conf = common.get_context(config, silent=True)
     if ctx_name is None:

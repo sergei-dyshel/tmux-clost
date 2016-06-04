@@ -3,13 +3,17 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+try:
+    import re2 as re
+except ImportError:
+    import re
+
 ERROR_TIMEOUT = 5000
 
 def wrap_main(main):
     try:
-        main()
+        main(sys.argv)
     except BaseException as exc:
-        import sys
         if sys.stdin.isatty():
             # executed by user
             raise
@@ -57,7 +61,6 @@ def match_lines(lines, index, patterns):
     for line, pattern in itertools.izip(
             itertools.islice(lines, index, index + len(patterns)),
             patterns):
-        import re
         if not re.search(pattern, line):
             return False
     return True
@@ -81,7 +84,6 @@ def get_context(config, silent=False):
     return ctx_name, ctx_conf
 
 def get_prompt_input(config, last_prompt_pattern):
-    import re
     last_line = tmux.capture_pane(max_lines=1)
     m = re.search(last_prompt_pattern, last_line)
     return last_line[m.end(0):].strip()

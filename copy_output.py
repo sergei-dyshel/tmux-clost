@@ -7,7 +7,19 @@ import os.path
 
 DEFAULT_MAX_LINES = 10000
 
-def main():
+def copy_to_clipboard(out):
+    import sys
+    # prevent pyperclip from using Gtk/Qt clipboard
+    sys.modules['gtk'] = None
+    sys.modules['PyQt4'] = None
+    import pyperclip
+
+    # fixes problems with improper characters (such as line endings)
+    out_utf8 = unicode(out, encoding='utf8', errors='ignore')
+
+    pyperclip.copy(out_utf8)
+
+def main(argv):
     config = common.get_config()
     ctx_name, ctx_conf = common.get_context(config)
 
@@ -19,22 +31,20 @@ def main():
     while i >= 0:
         if i == 0 or common.match_lines(lines, i, patterns):
             if last is not None:
-                tmux.display_message(
-                    'copied {} lines (context: {})'.format(last - i, ctx_name))
                 out = ''.join(itertools.islice(lines, i, last))
-                with open(os.path.join(common.get_workdir(), 'output.txt'), 'w') as f:
+                save_path = os.path.join(common.get_workdir(), 'output.txt')
+                with open(save_path, 'w') as f:
                     f.write(out)
 
-                import sys
-                # prevent pyperclip from using Gtk/Qt clipboard
-                sys.modules['gtk'] = None
-                sys.modules['PyQt4'] = None
-                import pyperclip
+                if len(argv) < 2 or argv[1] != '--save-only':
+                    copy_to_clipboard(out)
+                    action = 'Copied'
+                else:
+                    action = 'Saved to ' + save_path
 
-                # fixes problems with improper characters (such as line endings)
-                out_utf8 = unicode(out, encoding='utf8', errors='ignore')
+                tmux.display_message('{} {} lines (context: {})'.format(
+                    action, last - i, ctx_name))
 
-                pyperclip.copy(out_utf8)
                 break
             i -= len(patterns)
         else:

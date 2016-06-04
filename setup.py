@@ -10,14 +10,16 @@ import utils
 def script_path(name):
     return os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), name))
 
-def bind_key_to_function(function):
+def bind_key_to_function(function, script=None, script_args=''):
     workdir = common.get_workdir()
     key = common.get_config_var(function + '_key')
+    if script is None:
+        script = function
     if key is not None:
         tmux.tmux_bind_key(
             key, ['run-shell',
-                  '{} >{}/last.log 2>&1'.format(
-                      script_path(function + '.py'), workdir)])
+                  '{} {} >{}/last.log 2>&1'.format(
+                      script_path(script + '.py'), script_args, workdir)])
 
 def bind_enter():
     workdir = common.get_workdir()
@@ -44,8 +46,9 @@ def run_fzf(input):
     line = line.strip()
     return line
 
-def main():
+def main(argv):
     bind_key_to_function('copy_output')
+    bind_key_to_function('save_output', 'copy_output', '--save-only')
     bind_key_to_function('search_history')
     bind_key_to_function('insert_snippet')
     bind_enter()
