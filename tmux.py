@@ -3,6 +3,12 @@ import utils
 def _run(command, **kwargs):
     return utils.run_command(['tmux'] + command, **kwargs)
 
+def _truncate_middle(string):
+    if len(string) <= 40:
+        return string
+    else:
+        return string[:20] + '...' + string[-20:]
+
 def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
     cursor_x = int(get_variable('cursor_x'))
     cursor_y = int(get_variable('cursor_y'))
@@ -21,16 +27,26 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
     trim_lines = pane_height - cursor_y - 1
     if (trim_lines > 0) or max_lines > 0 or till_cursor or splitlines:
         out_lines = out.splitlines(True)
-        last_line = out_lines[-1]
-        if trim_lines > 0:
-            out_lines = out_lines[:-trim_lines]
+        import re
+        if re.match(r'\[ \S+ \]', out_lines[-1]):
+            print 'Stripping screen status line'
+            out_lines = out_lines[:-1]
+        while out_lines[-1] == '':
+            out_lines = out_lines[:-1]
+        # if trim_lines > 0:
+        #     out_lines = out_lines[:-trim_lines]
         if max_lines > 0:
             out_lines = out_lines[-max_lines:]
+        last_line = out_lines[-1]
         trim_chars = len(last_line) - cursor_x
         if till_cursor and (len(last_line) < pane_width) and (trim_chars > 0):
             out_lines[-1] = last_line[:-(trim_chars)]
 
-        out = ''.join(out_lines) if not splitlines else out_lines
+        joined = ''.join(out_lines)
+        print 'Captured {} lines: {}'.format(len(out_lines), _truncate_middle(joined))
+        out = joined if not splitlines else out_lines
+    else:
+        print 'Captured: {}'.format(_truncate_middle(out))
 
     return out
 
