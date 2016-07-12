@@ -5,6 +5,8 @@ import common
 import tmux
 
 def main(argv):
+    tmux.send_keys(['Enter'])
+    return
     config = common.get_config()
     ctx_name, ctx_conf = common.get_context(config, silent=True)
     if ctx_name is None:

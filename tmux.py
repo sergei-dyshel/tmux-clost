@@ -31,7 +31,7 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
         if re.match(r'\[ \S+ \]', out_lines[-1]):
             print 'Stripping screen status line'
             out_lines = out_lines[:-1]
-        while out_lines[-1] == '':
+        while out_lines[-1] == '\n':
             out_lines = out_lines[:-1]
         # if trim_lines > 0:
         #     out_lines = out_lines[:-trim_lines]

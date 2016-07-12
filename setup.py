@@ -47,11 +47,13 @@ def run_fzf(input):
     return line
 
 def main(argv):
+    bind_enter()
+    if len(sys.argv) > 1 and sys.argv[1] == 'bind_enter':
+        return
     bind_key_to_function('copy_output')
     bind_key_to_function('save_output', 'copy_output', '--save-only')
     bind_key_to_function('search_history')
     bind_key_to_function('insert_snippet')
-    bind_enter()
 
 if __name__ == '__main__':
     common.wrap_main(main)
