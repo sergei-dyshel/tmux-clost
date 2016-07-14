@@ -4,20 +4,18 @@ import tmux
 import common
 import itertools
 import os.path
+import utils
 
 DEFAULT_MAX_LINES = 10000
 
-def copy_to_clipboard(out):
-    import sys
-    # prevent pyperclip from using Gtk/Qt clipboard
-    sys.modules['gtk'] = None
-    sys.modules['PyQt4'] = None
-    import pyperclip
+def copy_xsel(text, selection):
+    return utils.run_command('xsel --input --{}'.format(selection), input=text)
 
+def copy_to_clipboard(out):
     # fixes problems with improper characters (such as line endings)
     out_utf8 = unicode(out, encoding='utf8', errors='ignore')
-
-    pyperclip.copy(out_utf8)
+    for selection in ['primary', 'clipboard']:
+        copy_xsel(out_utf8.encode('utf-8'), selection)
 
 def main(argv):
     config = common.get_config()
