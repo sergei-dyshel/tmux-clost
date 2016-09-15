@@ -1,5 +1,8 @@
 import tmux
 import sys
+import logging
+import os.path
+
 reload(sys)
 sys.setdefaultencoding('utf8')
 
@@ -9,6 +12,41 @@ except ImportError:
     import re
 
 ERROR_TIMEOUT = 5000
+_workdir = None
+_logger = None
+
+def _init_logger():
+    logger = logging.getLogger('__main__')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    if sys.stdin.isatty():
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    log_path = '/tmp/tmux-clost.log'
+    handler = logging.FileHandler(log_path)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    return logger
+
+def _log(level, msg, *args, **kwargs):
+    full_msg = msg.format(*args, **kwargs) if args or kwargs else msg
+    global _logger
+    if _logger is None:
+        _logger = _init_logger()
+    _logger.log(level, full_msg)
+
+def log_debug(msg, *args, **kwargs):
+    return _log(logging.DEBUG, msg, *args, **kwargs)
+
+def log_info(msg, *args, **kwargs):
+    return _log(logging.INFO, msg, *args, **kwargs)
+
+def log_warning(msg, *args, **kwargs):
+    return _log(logging.WARNING, msg, *args, **kwargs)
+
+def log_error(msg, *args, **kwargs):
+    return _log(logging.ERROR, msg, *args, **kwargs)
 
 def wrap_main(main):
     try:
@@ -20,7 +58,7 @@ def wrap_main(main):
         else:
             # executed by tmux
             import traceback
-            traceback.print_exc(file=sys.stdout)
+            log_error(traceback.format_exc())
             import inspect
             import os.path
             script = os.path.basename(inspect.getsourcefile(main))
@@ -47,12 +85,15 @@ def get_config():
     return config
 
 def get_workdir():
-    workdir = get_config_var('workdir', mandatory=True)
+    global _workdir
+    if _workdir is not None:
+        return _workdir
+    _workdir = get_config_var('workdir', mandatory=True)
     import os.path
     import os
-    if not os.path.isdir(workdir):
-        os.makedirs(workdir)
-    return workdir
+    if not os.path.isdir(_workdir):
+        os.makedirs(_workdir)
+    return _workdir
 
 def match_lines(lines, index, patterns):
     if index + len(patterns) > len(lines):
@@ -88,16 +129,20 @@ def get_prompt_input(config, last_prompt_pattern):
     m = re.search(last_prompt_pattern, last_line)
     return last_line[m.end(0):].strip()
 
-def run_command(command, input=''):
+def run_command(command, input=None):
     import subprocess
     if isinstance(command, str):
         import shlex
         command = shlex.split(command)
     import pipes
-    print 'Running ' + ' '.join(map(pipes.quote, map(str, command)))
+    log_debug('Running ' + ' '.join(map(pipes.quote, map(str, command))))
+    if input is None:
+        return subprocess.check_output(command)
+    else:
+        print input
     proc = subprocess.Popen(command,
                      stdout=subprocess.PIPE,
-                     stdin=subprocess.PIPE,
+                     stdin=None,
                      stderr=subprocess.STDOUT)
     out, err = proc.communicate(input=input)
     if proc.returncode != 0:

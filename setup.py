@@ -39,7 +39,7 @@ def run_fzf(input):
             ['fzf-tmux', '-d', '20%', '--no-sort'],
             input=input)
         if len(line.splitlines()) > 1:
-            print 'fzf-tmux returned unexpected output: \n' + line
+            common.log_error('fzf-tmux returned unexpected output: \n' + line)
             raise Exception('fzf-tmux returned unexpected output')
     finally:
         bind_enter()

@@ -1,9 +1,11 @@
 import utils
+import common
 
 def _run(command, **kwargs):
     return utils.run_command(['tmux'] + command, **kwargs)
 
 def _truncate_middle(string):
+    string = string.strip()
     if len(string) <= 40:
         return string
     else:
@@ -29,7 +31,7 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
         out_lines = out.splitlines(True)
         import re
         if re.match(r'\[ \S+ \]', out_lines[-1]):
-            print 'Stripping screen status line'
+            common.log_debug('Stripping screen status line')
             out_lines = out_lines[:-1]
         while out_lines[-1] == '\n':
             out_lines = out_lines[:-1]
@@ -43,12 +45,33 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
             out_lines[-1] = last_line[:-(trim_chars)]
 
         joined = ''.join(out_lines)
-        print 'Captured {} lines: {}'.format(len(out_lines), _truncate_middle(joined))
+        common.log_warning('Captured {} lines: {}', len(out_lines),
+                           _truncate_middle(joined))
         out = joined if not splitlines else out_lines
     else:
-        print 'Captured: {}'.format(_truncate_middle(out))
-
+        common.log_info('Captured: {}', _truncate_middle(out))
     return out
+
+def capture_pane1(max_lines=0):
+    start = -max_lines if max_lines >= 0 else '-'
+    cmd = ['capture-pane', '-J']
+    cmd += ['-S', start]
+    _run(cmd)
+
+    out = _run(['save-buffer', '-'])
+    _run(['delete-buffer'])
+
+    import re
+    m = re.match(r'\n\[ \S+ \]$')
+    if m is not None:
+        common.log_debug('stripping screen/tmux statusline')
+        out = out[:m.start()]
+    out = out.rstrip('\n')
+    num_lines = out.count('\n') + 2
+    common.log_debug('Captured {} lines: {}', num_lines,
+                       _truncate_middle(out))
+    return out
+
 
 def insert_text(text):
     _run(['load-buffer', '-'], input=text)

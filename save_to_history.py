@@ -14,7 +14,7 @@ def main(argv):
     patterns = ctx_conf['patterns']
     cmd = common.get_prompt_input(config, patterns[-1])
     tmux.send_keys(['Enter'])
-    print 'Saving command "{}"'.format(cmd)
+    common.log_info('Saving command "{}"', cmd)
     if cmd:
         history.save_to_history(ctx_name, cmd)
 
