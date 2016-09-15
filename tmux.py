@@ -45,30 +45,37 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
             out_lines[-1] = last_line[:-(trim_chars)]
 
         joined = ''.join(out_lines)
-        common.log_warning('Captured {} lines: {}', len(out_lines),
+        common.log_warning('Captured {} lines: "{}"', len(out_lines),
                            _truncate_middle(joined))
         out = joined if not splitlines else out_lines
     else:
-        common.log_info('Captured: {}', _truncate_middle(out))
+        common.log_info('Captured "{}"', _truncate_middle(out))
     return out
 
-def capture_pane1(max_lines=0):
+def capture_pane1(max_lines=0, filename=None):
     start = -max_lines if max_lines >= 0 else '-'
     cmd = ['capture-pane', '-J']
     cmd += ['-S', start]
     _run(cmd)
 
-    out = _run(['save-buffer', '-'])
+    if filename is not None:
+        common.log_debug('Captured to {}', filename)
+        _run(['save-buffer', filename])
+        with open(filename) as f:
+            out = f.read()
+    else:
+        out = _run(['save-buffer', '-'])
+
     _run(['delete-buffer'])
 
     import re
-    m = re.match(r'\n\[ \S+ \]$')
+    m = re.match(r'\n\[ \S+ \]$', out)
     if m is not None:
         common.log_debug('stripping screen/tmux statusline')
         out = out[:m.start()]
     out = out.rstrip('\n')
-    num_lines = out.count('\n') + 2
-    common.log_debug('Captured {} lines: {}', num_lines,
+    num_lines = out.count('\n') + 1
+    common.log_debug('Captured {} lines: "{}"', num_lines,
                        _truncate_middle(out))
     return out
 

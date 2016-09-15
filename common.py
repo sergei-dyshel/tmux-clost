@@ -2,6 +2,8 @@ import tmux
 import sys
 import logging
 import os.path
+import re
+import os
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -60,7 +62,6 @@ def wrap_main(main):
             import traceback
             log_error(traceback.format_exc())
             import inspect
-            import os.path
             script = os.path.basename(inspect.getsourcefile(main))
             msg = 'Clost: {} failed with {}: {}'.format(
                 script, exc.__class__.__name__, exc)
@@ -89,8 +90,6 @@ def get_workdir():
     if _workdir is not None:
         return _workdir
     _workdir = get_config_var('workdir', mandatory=True)
-    import os.path
-    import os
     if not os.path.isdir(_workdir):
         os.makedirs(_workdir)
     return _workdir
@@ -106,23 +105,22 @@ def match_lines(lines, index, patterns):
             return False
     return True
 
-def _find_context(lines, config):
-    for ctx_name, ctx_conf in config['contexts'].iteritems():
-        patterns = ctx_conf['patterns']
-        if match_lines(lines, len(lines) - len(patterns), patterns):
-            return ctx_name, ctx_conf
-    return None, None
-
 def get_context(config, silent=False):
-    max_prompt_lines = max(len(context['patterns'])
-                           for context in config['contexts'].itervalues())
-    lines = tmux.capture_pane(max_lines=max_prompt_lines,
-                              till_cursor=True,
-                              splitlines=True)
-    ctx_name, ctx_conf = _find_context(lines, config)
-    if ctx_name is None and not silent:
+    pane = tmux.capture_pane1()
+    for ctx in config['contexts']:
+        for pattern in ctx['patterns']:
+            search_pattern = pattern + '(?P<cmdline>.*)$'
+            m = re.search(search_pattern, pane)
+            if m:
+                cmd = m.group('cmdline').strip()
+                log_info(
+                    'Matched context "{}" with pattern "{}" and command "{}"',
+                    ctx['name'], pattern, cmd)
+                return ctx, pattern, cmd
+    if silent:
+        return None, None, None
+    else:
         raise Exception('Matching context not found')
-    return ctx_name, ctx_conf
 
 def get_prompt_input(config, last_prompt_pattern):
     last_line = tmux.capture_pane(max_lines=1)
