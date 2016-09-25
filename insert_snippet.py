@@ -8,10 +8,10 @@ import os
 
 def main(argv):
     config = common.get_config()
-    ctx_name, ctx_conf = common.get_context(config)
+    ctx, _, _ = common.get_context(config)
 
     snippets_dir = common.get_config_var('snippets_dir', mandatory=True)
-    ctx_snippets_dir = os.path.join(snippets_dir, ctx_name)
+    ctx_snippets_dir = os.path.join(snippets_dir, ctx['name'])
     if not os.path.isdir(ctx_snippets_dir):
         return
     snippet_names = os.listdir(ctx_snippets_dir)

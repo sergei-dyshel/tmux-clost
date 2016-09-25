@@ -69,7 +69,7 @@ def capture_pane1(max_lines=0, filename=None):
     _run(['delete-buffer'])
 
     import re
-    m = re.match(r'\n\[ \S+ \]$', out)
+    m = re.search(r'\n\[ \S+ \].*$', out)
     if m is not None:
         common.log_debug('stripping screen/tmux statusline')
         out = out[:m.start()]

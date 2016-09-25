@@ -8,9 +8,9 @@ import setup
 
 def main(argv):
     config = common.get_config()
-    ctx_name, ctx_conf = common.get_context(config)
+    ctx, _, _ = common.get_context(config)
 
-    all_history = history.load_history(ctx_name)
+    all_history = history.load_history(ctx['name'])
     line = setup.run_fzf(all_history)
     if line:
         tmux.insert_text(line)

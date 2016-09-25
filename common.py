@@ -109,7 +109,7 @@ def get_context(config, silent=False):
     pane = tmux.capture_pane1()
     for ctx in config['contexts']:
         for pattern in ctx['patterns']:
-            search_pattern = pattern + '(?P<cmdline>.*)$'
+            search_pattern = '\n' + pattern + '(?P<cmdline>.*)$'
             m = re.search(search_pattern, pane)
             if m:
                 cmd = m.group('cmdline').strip()

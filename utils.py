@@ -1,7 +1,7 @@
 import subprocess
 import common
 
-def RunError(Exception):
+class RunError(Exception):
     def __init__(self, command, returncode, stdout, stderr):
         self.cmd = command
         self.returncode = returncode
@@ -11,6 +11,9 @@ def RunError(Exception):
     def __str__(self):
         return "Command '{}' returned exit status {} with STDOUT:\n{}\nSTDERR:\n{}".format(
             self.cmd, self.returncode, self.stdout, self.stderr)
+
+def _shorten_out(out):
+    return out if len(out) < 1024 else "(long output)"
 
 def run_command(command, input=None, returncodes=[0], **kwargs):
     if isinstance(command, str):
@@ -29,7 +32,8 @@ def run_command(command, input=None, returncodes=[0], **kwargs):
 
     if returncodes:
         if proc.returncode != 0:
-            raise RunError(cmd_str, proc.returncode, out, err)
+            raise RunError(cmd_str, proc.returncode, _shorten_out(out),
+                           _shorten_out(err))
         return out
     return proc.returncode
 
