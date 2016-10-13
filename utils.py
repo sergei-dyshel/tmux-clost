@@ -1,19 +1,28 @@
 import subprocess
 import common
+import collections
+
+import log
+
+RunResult = collections.namedtuple('RunResult',
+                                   ['returncode', 'stdout', 'stderr'])
 
 class RunError(Exception):
-    def __init__(self, command, returncode, stdout, stderr):
+    def __init__(self, command, result):
         self.cmd = command
-        self.returncode = returncode
-        self.stdout = stdout
-        self.stderr = stderr
+        self.result = result
+        log.error(
+            "Command '{}' exited exit status {} with STDOUT:\n{}\nSTDERR:\n{}",
+            command, result.returncode, self._shorten(result.stdout), self._shorten(result.stderr))
+
+    # TODO: use shorten from copy_output (with cutting middle)
+    def _shorten(self, out):
+        return out if len(out) < 1024 else "(long output)"
 
     def __str__(self):
-        return "Command '{}' returned exit status {} with STDOUT:\n{}\nSTDERR:\n{}".format(
-            self.cmd, self.returncode, self.stdout, self.stderr)
+        return "Command '{}' returned {}".format(self.cmd,
+                                                 self.result.returncode)
 
-def _shorten_out(out):
-    return out if len(out) < 1024 else "(long output)"
 
 def run_command(command, input=None, returncodes=[0], **kwargs):
     if isinstance(command, str):
@@ -23,18 +32,18 @@ def run_command(command, input=None, returncodes=[0], **kwargs):
         # import pipes
         # cmd_str = ' '.join(map(pipes.quote, command))
         cmd_str = str(command)
-    common.log_debug('Running ' + cmd_str)
+    log.debug('Running ' + cmd_str)
     proc = subprocess.Popen(command,
                      stdout=subprocess.PIPE,
                      stdin=subprocess.PIPE,
                      stderr=subprocess.PIPE, **kwargs)
-    out, err = proc.communicate(input=input)
 
-    if returncodes:
-        if proc.returncode != 0:
-            raise RunError(cmd_str, proc.returncode, _shorten_out(out),
-                           _shorten_out(err))
-        return out
-    return proc.returncode
+    stdout, stderr = proc.communicate(input=input)
+    result = RunResult(returncode=proc.returncode, stdout=stdout, stderr=stderr)
+
+
+    if returncodes and proc.returncode not in returncodes:
+        raise RunError(cmd_str, result)
+    return result
 
 

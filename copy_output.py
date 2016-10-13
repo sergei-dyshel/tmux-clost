@@ -2,14 +2,15 @@
 
 import tmux
 import common
-import itertools
 import os.path
 import utils
+
+import log
 
 DEFAULT_MAX_LINES = 10000
 
 def copy_xsel(text, selection):
-    return utils.run_command('xsel --input --{}'.format(selection), input=text)
+    return utils.run_command('xsel --input --{}'.format(selection), input=text).stdout
 
 def copy_to_clipboard(out):
     # fixes problems with improper characters (such as line endings)
@@ -18,18 +19,9 @@ def copy_to_clipboard(out):
         copy_xsel(out_utf8, selection)
 
 def file_to_clipboard(path):
-    cnt = 0
-    while (utils.run_command(
-            'xsel -ob | diff -q - {}'.format(path), returncodes=[], shell=True) != 0):
-        if cnt > 1:
-            raise Exception('exceeded {} xsel tries'.format(cnt))
-        cnt += 1
-        utils.run_command(
-            'cat {} | xsel -ib'.format(path),
-            shell=True)
-    common.log_debug('tried xsel {} times', cnt)
-    # utils.run_command(
-    #     'xclip -verbose -in -selection clipboard -loops 1 {}'.format(path))
+    utils.run_command(
+        'cat {} | xsel -ib'.format(path),
+        shell=True)
 
 def main(argv):
     config = common.get_config()
@@ -46,7 +38,7 @@ def main(argv):
         part = part.strip()
         num_lines = part.count('\n') + 1
         if num_lines == 1:
-            common.log_debug('Skipping command "{}"', part)
+            log.debug('Skipping command "{}"', part)
             continue
         out = part
         break

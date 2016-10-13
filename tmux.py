@@ -1,8 +1,9 @@
 import utils
-import common
+
+import log
 
 def _run(command, **kwargs):
-    return utils.run_command(['tmux'] + command, **kwargs)
+    return utils.run_command(['tmux'] + command, **kwargs).stdout
 
 def _truncate_middle(string):
     string = string.strip()
@@ -31,7 +32,7 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
         out_lines = out.splitlines(True)
         import re
         if re.match(r'\[ \S+ \]', out_lines[-1]):
-            common.log_debug('Stripping screen status line')
+            log.debug('Stripping screen status line')
             out_lines = out_lines[:-1]
         while out_lines[-1] == '\n':
             out_lines = out_lines[:-1]
@@ -45,11 +46,11 @@ def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
             out_lines[-1] = last_line[:-(trim_chars)]
 
         joined = ''.join(out_lines)
-        common.log_warning('Captured {} lines: "{}"', len(out_lines),
+        log.warning('Captured {} lines: "{}"', len(out_lines),
                            _truncate_middle(joined))
         out = joined if not splitlines else out_lines
     else:
-        common.log_info('Captured "{}"', _truncate_middle(out))
+        log.info('Captured "{}"', _truncate_middle(out))
     return out
 
 def capture_pane1(max_lines=0, filename=None):
@@ -59,7 +60,7 @@ def capture_pane1(max_lines=0, filename=None):
     _run(cmd)
 
     if filename is not None:
-        common.log_debug('Captured to {}', filename)
+        log.debug('Captured to {}', filename)
         _run(['save-buffer', filename])
         with open(filename) as f:
             out = f.read()
@@ -71,11 +72,11 @@ def capture_pane1(max_lines=0, filename=None):
     import re
     m = re.search(r'\n\[ \S+ \].*$', out)
     if m is not None:
-        common.log_debug('stripping screen/tmux statusline')
+        log.debug('stripping screen/tmux statusline')
         out = out[:m.start()]
     out = out.rstrip('\n')
     num_lines = out.count('\n') + 1
-    common.log_debug('Captured {} lines: "{}"', num_lines,
+    log.debug('Captured {} lines: "{}"', num_lines,
                        _truncate_middle(out))
     return out
 
@@ -113,7 +114,7 @@ def display_message(msg, timeout=None):
 def get_variable(var_name):
     return print_message('#{%s}' % var_name)
 
-def tmux_bind_key(key, cmd=None, no_prefix=False, unbind=False):
+def bind_key(key, cmd=None, no_prefix=False, unbind=False):
     command = ['bind-key' if not unbind else 'unbind-key']
     if no_prefix:
         command.append('-n')

@@ -7,6 +7,8 @@ import sys
 import os
 import utils
 
+import log
+
 def script_path(name):
     return os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), name))
 
@@ -16,35 +18,41 @@ def bind_key_to_function(function, script=None, script_args=''):
     if script is None:
         script = function
     if key is not None:
-        tmux.tmux_bind_key(
+        tmux.bind_key(
             key, ['run-shell',
-                  '{} {} >{}/last.log 2>&1'.format(
-                      script_path(script + '.py'), script_args, workdir)])
+                  '{} {}'.format(
+                      script_path(script + '.py'), script_args)])
 
 def bind_enter():
     workdir = common.get_workdir()
     if not common.get_config_var('save_to_history'):
         return
-    shell_cmd = ['run-shell', '-b', '{} >{}/last.log 2>&1'.format(
-                script_path('save_to_history.py'), workdir)]
-    tmux.tmux_bind_key('Enter', shell_cmd, no_prefix=True)
+    shell_cmd = ['run-shell', '-b', '{}'.format(
+                script_path('save_to_history.py'))]
+    tmux.bind_key('Enter', shell_cmd, no_prefix=True)
 
 def unbind_enter():
-    return tmux.tmux_bind_key('Enter', no_prefix=True, unbind=True)
+    return tmux.bind_key('Enter', no_prefix=True, unbind=True)
 
 def run_fzf(input):
     unbind_enter()
     try:
-        line = utils.run_command(
+        fzf_res = utils.run_command(
             ['fzf-tmux', '-d', '20%', '--no-sort'],
+            returncodes=[0, 130],
             input=input)
-        if len(line.splitlines()) > 1:
-            common.log_error('fzf-tmux returned unexpected output: \n' + line)
-            raise Exception('fzf-tmux returned unexpected output')
+        if fzf_res.returncode == 130:
+            line = ''
+        else:
+            line = fzf_res.stdout
+            if len(line.splitlines()) > 1:
+                log.error('fzf-tmux returned unexpected output: \n' + line)
+                raise Exception('fzf-tmux returned unexpected output')
     finally:
         bind_enter()
     line = line.strip()
     return line
+
 
 def main(argv):
     bind_enter()

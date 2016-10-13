@@ -4,6 +4,8 @@ import history
 import common
 import tmux
 
+import log
+
 def main(argv):
     config = common.get_config()
     ctx, _, cmd = common.get_context(config, silent=True)
@@ -11,7 +13,7 @@ def main(argv):
     if ctx is None:
         return
 
-    common.log_info('Saving command "{}"', cmd)
+    log.info('Saving command "{}"', cmd)
     if cmd:
         history.save_to_history(ctx['name'], cmd)
 
