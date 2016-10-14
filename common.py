@@ -6,15 +6,11 @@ import os
 
 import log
 
-reload(sys)
-sys.setdefaultencoding('utf8')
-
 try:
     import re2 as re
 except ImportError:
     import re
 
-ERROR_TIMEOUT = 5000
 _workdir = None
 
 def wrap_main(main):
@@ -73,7 +69,7 @@ def match_lines(lines, index, patterns):
     return True
 
 def get_context(config, silent=False):
-    pane = tmux.capture_pane1()
+    pane = tmux.capture_pane()
     for ctx in config['contexts']:
         for pattern in ctx['patterns']:
             search_pattern = '\n' + pattern + '(?P<cmdline>.*)$'
@@ -88,8 +84,3 @@ def get_context(config, silent=False):
         return None, None, None
     else:
         raise Exception('Matching context not found')
-
-def get_prompt_input(config, last_prompt_pattern):
-    last_line = tmux.capture_pane(max_lines=1)
-    m = re.search(last_prompt_pattern, last_line)
-    return last_line[m.end(0):].strip()

@@ -12,48 +12,7 @@ def _truncate_middle(string):
     else:
         return string[:20] + '...' + string[-20:]
 
-def capture_pane(max_lines=0, till_cursor=False, splitlines=False):
-    cursor_x = int(get_variable('cursor_x'))
-    cursor_y = int(get_variable('cursor_y'))
-    pane_height = int(get_variable('pane_height'))
-    pane_width = int(get_variable('pane_width'))
-    # print 'pane_height {} cursor_y {}'.format(pane_height, cursor_y)
-    start = -max_lines if max_lines >= 0 else '-'
-    cmd = ['capture-pane', '-J']
-    cmd += ['-S', start]
-    # cmd += ['-E', cursor_y]
-    _run(cmd)
-
-    out = _run(['save-buffer', '-'])
-    _run(['delete-buffer'])
-
-    trim_lines = pane_height - cursor_y - 1
-    if (trim_lines > 0) or max_lines > 0 or till_cursor or splitlines:
-        out_lines = out.splitlines(True)
-        import re
-        if re.match(r'\[ \S+ \]', out_lines[-1]):
-            log.debug('Stripping screen status line')
-            out_lines = out_lines[:-1]
-        while out_lines[-1] == '\n':
-            out_lines = out_lines[:-1]
-        # if trim_lines > 0:
-        #     out_lines = out_lines[:-trim_lines]
-        if max_lines > 0:
-            out_lines = out_lines[-max_lines:]
-        last_line = out_lines[-1]
-        trim_chars = len(last_line) - cursor_x
-        if till_cursor and (len(last_line) < pane_width) and (trim_chars > 0):
-            out_lines[-1] = last_line[:-(trim_chars)]
-
-        joined = ''.join(out_lines)
-        log.warning('Captured {} lines: "{}"', len(out_lines),
-                           _truncate_middle(joined))
-        out = joined if not splitlines else out_lines
-    else:
-        log.info('Captured "{}"', _truncate_middle(out))
-    return out
-
-def capture_pane1(max_lines=0, filename=None):
+def capture_pane(max_lines=0, filename=None):
     start = -max_lines if max_lines >= 0 else '-'
     cmd = ['capture-pane', '-J']
     cmd += ['-S', start]

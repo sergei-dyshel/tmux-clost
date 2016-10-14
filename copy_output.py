@@ -29,7 +29,7 @@ def main(argv):
 
     max_lines = config.get('max_lines', DEFAULT_MAX_LINES)
     full_out_path = os.path.join(common.get_workdir(), 'full_output.txt')
-    lines = tmux.capture_pane1(max_lines=max_lines, filename=full_out_path)
+    lines = tmux.capture_pane(max_lines=max_lines, filename=full_out_path)
     save_path = os.path.join(common.get_workdir(), 'output.txt')
 
     parts = common.re.split(pattern, lines)
@@ -48,14 +48,10 @@ def main(argv):
     with open(save_path, 'w') as f:
         f.write(out)
 
-    if len(argv) < 2 or argv[1] != '--save-only':
-        file_to_clipboard(save_path)
-        action = 'Copied'
-    else:
-        action = 'Saved to ' + save_path
+    file_to_clipboard(save_path)
 
-    tmux.display_message('{} {} lines (context: {})'.format(
-        action, num_lines, ctx['name']))
+    tmux.display_message('Copied {} lines (context: {})'.format(
+        num_lines, ctx['name']))
 
 if __name__ == '__main__':
     common.wrap_main(main)
