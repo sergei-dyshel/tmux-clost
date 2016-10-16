@@ -23,14 +23,11 @@ def file_to_clipboard(path):
         'cat {} | xsel -ib'.format(path),
         shell=True)
 
-def main(argv):
+def get(ctx, pattern):
     config = common.get_config()
-    ctx, pattern, cmd = common.get_context(config)
-
     max_lines = config.get('max_lines', DEFAULT_MAX_LINES)
     full_out_path = os.path.join(common.get_workdir(), 'full_output.txt')
     lines = tmux.capture_pane(max_lines=max_lines, filename=full_out_path)
-    save_path = os.path.join(common.get_workdir(), 'output.txt')
 
     parts = common.re.split(pattern, lines)
     out = None
@@ -44,14 +41,4 @@ def main(argv):
         break
     if out is None:
         raise Exception('No output to copy')
-
-    with open(save_path, 'w') as f:
-        f.write(out)
-
-    file_to_clipboard(save_path)
-
-    tmux.display_message('Copied {} lines (context: {})'.format(
-        num_lines, ctx['name']))
-
-if __name__ == '__main__':
-    common.wrap_main(main)
+    return out

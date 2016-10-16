@@ -2,7 +2,7 @@ import utils
 
 import log
 
-def _run(command, **kwargs):
+def _run(command=[], **kwargs):
     return utils.run_command(['tmux'] + command, **kwargs).stdout
 
 def _truncate_middle(string):
@@ -44,8 +44,12 @@ def insert_text(text):
     _run(['load-buffer', '-'], input=text)
     _run(['paste-buffer', '-d', '-r'])
 
-def send_keys(keys):
-    _run(['send-keys'] + keys)
+def send_keys(keys, literally=False):
+    cmd = ['send-keys']
+    if literally:
+        cmd.append('-l')
+    cmd.extend(keys)
+    _run(cmd)
 
 def backspace(count=1):
     send_keys(['BSpace'] * count)
@@ -73,17 +77,30 @@ def display_message(msg, timeout=None):
 def get_variable(var_name):
     return print_message('#{%s}' % var_name)
 
-def bind_key(key, cmd=None, no_prefix=False, unbind=False):
-    command = ['bind-key' if not unbind else 'unbind-key']
+def bind_key(key, command, no_prefix=False, key_table=None):
+    cmd = ['bind-key']
     if no_prefix:
-        command.append('-n')
-    command.append(key)
-    if not unbind:
-        command.extend(cmd)
-    _run(command)
+        cmd.append('-n')
+    if key_table:
+        cmd.extend(['-T', key_table])
+    cmd.append(key)
+    cmd.extend(command)
+    _run(cmd)
+
+def unbind_key(key=None, all=False, no_prefix=False, key_table=None):
+    cmd = ['unbind-key']
+    if all:
+        cmd.append('-a')
+    if no_prefix:
+        cmd.append('-n')
+    if key_table:
+        cmd.extend(['-T', key_table])
+    if key:
+        cmd.append(key)
+    _run(cmd, ignore_err=r"table .* doesn't exist")
 
 def get_option(opt_name):
-    return _run(['show-options', '-g', '-v', opt_name]).strip()
+    return _run(['show-options', '-g', '-v', '-q', opt_name]).strip()
 
 def set_option(name, value):
     return _run(['set-option', '-g'] + (['-u', name] if value is None else

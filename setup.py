@@ -9,28 +9,27 @@ import utils
 
 import log
 
-def bind_key_to_cmd(key, args, background=False, **kwargs):
-    main_script = sys.argv[0]
+KEY_TABLE = 'clost'
+
+def bind_key_to_cmd(key, cmd, background=False, **kwargs):
+    main_script = os.path.abspath(sys.argv[0])
     bind_cmd = ['run-shell']
     if background:
         bind_cmd.append('-b')
-    bind_cmd.append('{} {}'.format(main_script, args))
-    return tmux.bind_key(key, bind_cmd, **kwargs)
-
-def bind_cmd_if_defined(cmd, **kwargs):
-    key = common.get_config_var(cmd + '_key')
-    if key is None:
-        return
-    return bind_key_to_cmd(key, cmd, **kwargs)
+    bind_cmd.append('{} {}'.format(main_script, cmd))
+    tmux.bind_key(key, bind_cmd, key_table=KEY_TABLE, **kwargs)
+    log.info('Bound "{}" to "{}"', key, cmd)
 
 def bind_enter():
     if not common.get_config_var('save_to_history'):
         return
-    return bind_key_to_cmd(
-        'Enter', 'save-to-history', no_prefix=True, background=True)
+    tmux.bind_key('Enter', ['send-keys', 'Enter'])
+    bind_key_to_cmd(
+        'Enter', 'save_to_history', no_prefix=True, background=True)
+    log.info('Bound "Enter" to save history')
 
 def unbind_enter():
-    return tmux.bind_key('Enter', no_prefix=True, unbind=True)
+    return tmux.unbind_key('Enter', no_prefix=True)
 
 def run_fzf(input):
     unbind_enter()
@@ -50,14 +49,4 @@ def run_fzf(input):
         bind_enter()
     line = line.strip()
     return line
-
-COMMANDS = ['copy_output', 'insert_snippet', 'search_history']
-
-def main(argv):
-    bind_enter()
-    for cmd in COMMANDS:
-        bind_cmd_if_defined(cmd)
-
-if __name__ == '__main__':
-    common.wrap_main(main)
 

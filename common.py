@@ -13,27 +13,26 @@ except ImportError:
 
 _workdir = None
 
-def wrap_main(main):
-    try:
-        main(sys.argv)
-    except BaseException as exc:
-        if sys.stdin.isatty():
-            # executed by user
-            raise
+class Error(Exception):
+    def __init__(self, msg, *args, **kwargs):
+        if args or kwargs:
+            full_msg = msg.format(*args, **kwargs)
         else:
-            # executed by tmux
-            import traceback
-            log.error(traceback.format_exc())
-            import inspect
-            script = os.path.basename(inspect.getsourcefile(main))
-            msg = 'Clost: {} failed with {}: {}'.format(
-                script, exc.__class__.__name__, exc)
-            tmux.display_message(msg, ERROR_TIMEOUT)
+            full_msg = msg
+        super(Error, self).__init__(full_msg)
+
+def get_temp_file(name):
+    tmp = '/tmp' # TODO: consider TMPDIR
+    clost_tmp = os.path.join(tmp, 'tmux-clost')
+    if not os.path.exists(clost_tmp):
+        os.makedirs(clost_tmp)
+    return os.path.join(clost_tmp, name)
+
 
 def get_config_var(opt_name, default=None, mandatory=False):
     full_opt_name = '@clost_' + opt_name
     value = tmux.get_option(full_opt_name)
-    if 'unknown option' in value:
+    if not value:
         if mandatory:
             raise Exception('Configuration option {} not defined or empty'.format(
                 full_opt_name))
@@ -41,7 +40,11 @@ def get_config_var(opt_name, default=None, mandatory=False):
             return default
     return value
 
+config = None
 def get_config():
+    global config
+    if config is not None:
+        return config
     config_file = get_config_var('config_file', mandatory=True)
     import yaml
     with open(config_file, 'r') as f:
@@ -68,7 +71,8 @@ def match_lines(lines, index, patterns):
             return False
     return True
 
-def get_context(config, silent=False):
+def get_context(silent=False):
+    config = get_config()
     pane = tmux.capture_pane()
     for ctx in config['contexts']:
         for pattern in ctx['patterns']:
