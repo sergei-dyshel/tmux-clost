@@ -2,9 +2,10 @@ import subprocess
 import collections
 import re
 
-import log
 import tmux
 import common
+import log
+import setup
 
 RunResult = collections.namedtuple('RunResult',
                                    ['returncode', 'stdout', 'stderr'])
@@ -26,7 +27,11 @@ class RunError(Exception):
                                                  self.result.returncode)
 
 
-def run_command(command, input=None, returncodes=[0], ignore_err=None, **kwargs):
+def run_command(command,
+                input=None,
+                returncodes=[0],
+                ignore_err=None,
+                **kwargs):
     if isinstance(command, str):
         cmd_str = '"{}"'.format(command)
     else:
@@ -50,21 +55,43 @@ def run_command(command, input=None, returncodes=[0], ignore_err=None, **kwargs)
     return result
 
 
-def run_in_split_window(shell_cmd):
-    CHANNEL = 'clost-split-done'
+def capture_output_split(shell_cmd):
     out_file = common.get_temp_file('split.out')
-    err_file = common.get_temp_file('split.err')
-    returncode_file = common.get_temp_file
+    full_cmd = '{shell_cmd} >{out_file}'.format(**locals())
+    returncode = run_in_split_window(full_cmd)
+    with open(out_file) as outf:
+        return RunResult(
+            stdout=outf.read().strip(), stderr='', returncode=returncode)
+
+def run_in_split_window(shell_cmd):
+    CHANNEL = 'clost'
+    returncode_file = common.get_temp_file('split.returncode')
     split_cmd = '''
-    trap "tmux wait-for -S {}" 0
-    {}
-    echo $? > /tmp/tmux-clost-edit-status.txt
-    '''
+    trap "tmux wait-for -S {CHANNEL}" 0
+    {shell_cmd}
+    echo $? > {returncode_file}
+    '''.format(**locals())
 
-    tmux._run(['split-window', split_cmd, ';', 'wait-for', 'clost-split-done'])
-    # tmux.send_keys(['C-e', 'C-u'])
-    # tmux.send_keys([exp], literally=True)
+    tmux._run(['split-window', split_cmd])
+    tmux._run(['wait-for', CHANNEL])
+    with open(returncode_file) as retf:
+        return int(retf.read())
 
-
+def select_split(lines):
+    lines_file = common.get_temp_file('selector.lines')
+    with open(lines_file, 'w') as f:
+        f.write('\n'.join(map(str.strip, lines)))
+    try:
+        setup.unbind_enter()
+        res = capture_output_split('cat {} | fzf --no-sort'.format(lines_file))
+    finally:
+        setup.bind_enter()
+    if res.returncode == 0:
+        return res.stdout
+    elif res.returncode == 130:
+        return ''
+    else:
+        log.error('fzf returned unexpected output: \n' + res.stdout)
+        raise Exception('fzf returned unexpected output')
 
 

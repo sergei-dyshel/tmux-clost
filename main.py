@@ -1,18 +1,9 @@
 #!/usr/bin/env python
 
 import sys
-import traceback
 import argparse
-import os.path
-import os
 
-import common
-import log
-import tmux
-import setup
-import history
-import output
-import commands
+from lib import log, tmux, commands
 
 
 def handle_cmd(cmd):
@@ -24,7 +15,7 @@ def handle_cmd(cmd):
             raise
         else:
             # executed by tmux
-
+            import traceback
             log.error(traceback.format_exc())
             msg = 'Clost: failed with {}: {}'.format(exc.__class__.__name__,
                                                      exc)

@@ -9,19 +9,17 @@ import utils
 
 import log
 
-KEY_TABLE = 'clost'
-
 def bind_key_to_cmd(key, cmd, background=False, **kwargs):
     main_script = os.path.abspath(sys.argv[0])
     bind_cmd = ['run-shell']
     if background:
         bind_cmd.append('-b')
     bind_cmd.append('{} {}'.format(main_script, cmd))
-    tmux.bind_key(key, bind_cmd, key_table=KEY_TABLE, **kwargs)
+    tmux.bind_key(key, bind_cmd, **kwargs)
     log.info('Bound "{}" to "{}"', key, cmd)
 
 def bind_enter():
-    if not common.get_config_var('save_to_history'):
+    if not common.get_config()['intercept_enter']:
         return
     tmux.bind_key('Enter', ['send-keys', 'Enter'])
     bind_key_to_cmd(
@@ -32,7 +30,7 @@ def unbind_enter():
     return tmux.unbind_key('Enter', no_prefix=True)
 
 def run_fzf(input):
-    unbind_enter()
+    # unbind_enter()
     try:
         fzf_res = utils.run_command(
             ['fzf-tmux', '-d', '20%', '--no-sort'],
@@ -46,7 +44,8 @@ def run_fzf(input):
                 log.error('fzf-tmux returned unexpected output: \n' + line)
                 raise Exception('fzf-tmux returned unexpected output')
     finally:
-        bind_enter()
+        # bind_enter()
+        pass
     line = line.strip()
     return line
 

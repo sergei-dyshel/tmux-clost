@@ -9,8 +9,11 @@ import tmux
 import setup
 import history
 import output
+import utils
 
 PARAMS_ATTR = '__clost__cmd__'
+KEY_TABLE = 'clost'
+
 
 def cmd(**kwargs):
     def decorator(func):
@@ -33,14 +36,14 @@ def bind_keys():
     cfg = common.get_config()
     if 'root_prefix' in cfg:
         tmux.bind_key(
-            cfg['root_prefix'], ['switch-client', '-T', setup.KEY_TABLE],
+            cfg['root_prefix'], ['switch-client', '-T', KEY_TABLE],
             no_prefix=True)
 
-    tmux.unbind_key(all=True, key_table=setup.KEY_TABLE)
+    tmux.unbind_key(all=True, key_table=KEY_TABLE)
     for name in list_names():
         params = getattr(get(name), PARAMS_ATTR)
         if hasattr(params, 'key'):
-            setup.bind_key_to_cmd(params.key, name)
+            setup.bind_key_to_cmd(params.key, name, key_table=KEY_TABLE)
 
 @cmd(key='h')
 def help():
@@ -67,23 +70,31 @@ def expand_alias():
     tmux.send_keys([exp], literally=True)
 
 @cmd(key='e')
-def edit_cmd_line():
+def edit_cmd():
     ctx, _, cmd = common.get_context()
-    with open('/tmp/tmux-clost-cmd.txt', 'w') as f:
+    cmd_file = common.get_temp_file('cmd.txt')
+    with open(cmd_file, 'w') as f:
         f.write(cmd)
-    split_cmd = '''
-    trap "tmux wait-for -S clost-split-done" 0
-    /usr/bin/vim /tmp/tmux-clost-cmd.txt
-    echo $? > /tmp/tmux-clost-edit-status.txt
-    '''
-
-    tmux._run(['split-window', split_cmd, ';', 'wait-for', 'clost-split-done'])
-    # tmux.send_keys(['C-e', 'C-u'])
-    # tmux.send_keys([exp], literally=True)
+    editor = common.get_config()['editor']
+    res = utils.run_in_split_window('{} {}'.format(editor, cmd_file))
+    if res != 0:
+        log.info(
+            'Editing command line was cancelled (editor exited with status {})',
+            res)
+        return
+    with open(cmd_file) as f:
+        tmux.replace_cmd_line(f.read().strip())
 
 
 @cmd()
 def save_to_history():
+    if (tmux.get_variable('pane_current_command').strip() not in
+        ['ssh', 'screen', 'tmux'] and
+            tmux.get_variable('alternate_on').strip() == '1'):
+        tmux.send_keys(['Enter'])
+        log.debug('Not intercepting "Enter" on alternate screen')
+        return
+
     ctx, _, cmd = common.get_context(silent=True)
     tmux.send_keys(['Enter'])
     if ctx is None:
@@ -91,6 +102,16 @@ def save_to_history():
     if cmd:
         log.info('Saving command "{}"', cmd)
         history.save_to_history(ctx['name'], cmd)
+
+@cmd(key='x')
+def show_context():
+    ctx, pattern, cmd = common.get_context()
+    print '''tmux-clost current context:
+    CONTEXT: {ctx[name]}
+    PATTERN: {pattern}
+    CMD: {cmd}
+    '''.format(**locals())
+
 
 @cmd(key='u')
 def insert_snippet():
@@ -102,7 +123,7 @@ def insert_snippet():
         return
     snippet_names = os.listdir(ctx_snippets_dir)
 
-    snippet_name = setup.run_fzf('\n'.join(snippet_names))
+    snippet_name = utils.select_split(snippet_names)
     if not snippet_name:
         return
 
@@ -130,7 +151,7 @@ def search_history():
     ctx, _, _ = common.get_context()
 
     all_history = history.load_history(ctx['name'])
-    line = setup.run_fzf(all_history)
+    line = utils.select_split(all_history)
     if line:
         tmux.insert_text(line)
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
-import common
 import os.path
 import os
+
+import common
 
 def get_history_path(context):
     workdir = common.get_workdir()
@@ -32,5 +33,5 @@ def load_history(context):
     remove_duplicates(lines)
     with open(history_path, 'w') as f:
         f.writelines(lines)
-    return ''.join(reversed(lines))
+    return reversed(lines)
 

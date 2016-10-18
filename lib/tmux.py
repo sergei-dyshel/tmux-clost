@@ -6,7 +6,7 @@ def _run(command=[], **kwargs):
     return utils.run_command(['tmux'] + command, **kwargs).stdout
 
 def _truncate_middle(string):
-    string = string.strip()
+    string = string.strip('\n')
     if len(string) <= 40:
         return string
     else:
@@ -103,5 +103,9 @@ def get_option(opt_name):
     return _run(['show-options', '-g', '-v', '-q', opt_name]).strip()
 
 def set_option(name, value):
-    return _run(['set-option', '-g'] + (['-u', name] if value is None else
-                                            [name, value]))
+    return _run(['set-option', '-g'] + (['-u', name]
+                                        if value is None else [name, value]))
+
+def replace_cmd_line(new_text):
+    send_keys(['C-e', 'C-u'])
+    send_keys([new_text], literally=True)
