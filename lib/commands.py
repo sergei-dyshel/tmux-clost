@@ -2,6 +2,7 @@ import os.path
 import os
 import argparse
 import shlex
+import sys
 
 import common
 import log
@@ -10,6 +11,7 @@ import setup
 import history
 import output
 import utils
+import alias
 
 PARAMS_ATTR = '__clost__cmd__'
 KEY_TABLE = 'clost'
@@ -28,48 +30,31 @@ def list_names():
 def get(name):
     return globals()[name]
 
-@cmd(key='b')
-def bind_keys():
-    common.config = None # TODO: reload config properly
+@cmd()
+def init():
+    path = tmux.get_env('PATH')
+    plugin_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    if plugin_dir not in path:
+        tmux.set_env('PATH', plugin_dir + ':' + path)
     setup.unbind_enter()
     setup.bind_enter()
-    cfg = common.get_config()
-    if 'root_prefix' in cfg:
-        tmux.bind_key(
-            cfg['root_prefix'], ['switch-client', '-T', KEY_TABLE],
-            no_prefix=True)
 
-    tmux.unbind_key(all=True, key_table=KEY_TABLE)
-    for name in list_names():
-        params = getattr(get(name), PARAMS_ATTR)
-        if hasattr(params, 'key'):
-            setup.bind_key_to_cmd(params.key, name, key_table=KEY_TABLE)
-
-@cmd(key='h')
+@cmd()
 def help():
     for name in list_names():
         params = getattr(get(name), PARAMS_ATTR)
         if hasattr(params, 'key'):
             print params.key, name
 
-@cmd(key='a')
+
+@cmd()
 def expand_alias():
     ctx, _, cmd = common.get_context()
-    if 'aliases' not in ctx:
-        raise common.Error('No aliases defined for context "{}"', ctx['name'])
-    argv = shlex.split(cmd)
-    if not argv:
-        raise common.Error('Empty command line')
-    alias = argv[0].strip()
-    if alias not in ctx['aliases']:
-        raise common.Error('Alias "{}" not defined for context "{}"', alias,
-                           ctx['name'])
-    alias_def = ctx['aliases'][alias]
-    exp = alias_def.format(*argv[1:])
-    tmux.send_keys(['C-e', 'C-u'])
-    tmux.send_keys([exp], literally=True)
+    exp = alias.expand(cmd, ctx)
+    tmux.replace_cmd_line(exp)
 
-@cmd(key='e')
+
+@cmd()
 def edit_cmd():
     ctx, _, cmd = common.get_context()
     cmd_file = common.get_temp_file('cmd.txt')
@@ -96,6 +81,13 @@ def save_to_history():
         return
 
     ctx, _, cmd = common.get_context(silent=True)
+    try:
+        newcmd = alias.expand(cmd, ctx)
+        if newcmd.strip() != cmd.strip():
+            cmd = newcmd
+            tmux.replace_cmd_line(cmd)
+    except Exception:
+        pass
     tmux.send_keys(['Enter'])
     if ctx is None:
         return
@@ -103,7 +95,7 @@ def save_to_history():
         log.info('Saving command "{}"', cmd)
         history.save_to_history(ctx['name'], cmd)
 
-@cmd(key='x')
+@cmd()
 def show_context():
     ctx, pattern, cmd = common.get_context()
     print '''tmux-clost current context:
@@ -113,7 +105,7 @@ def show_context():
     '''.format(**locals())
 
 
-@cmd(key='u')
+@cmd()
 def insert_snippet():
     ctx, _, _ = common.get_context()
 
@@ -130,28 +122,42 @@ def insert_snippet():
     with open(os.path.join(ctx_snippets_dir, snippet_name), 'rb+') as f:
         tmux.insert_text(f.read()[:-1])
 
-@cmd(key='c')
+@cmd()
 def copy_output():
     ctx, pattern, _ = common.get_context()
 
     out = output.get(ctx, pattern)
-    save_path = os.path.join(common.get_workdir(), 'output.txt')
 
-    with open(save_path, 'w') as f:
-        f.write(out)
-
-    output.file_to_clipboard(save_path)
+    # save_path = os.path.join(common.get_workdir(), 'output.txt')
+    # with open(save_path, 'w') as f:
+    #     f.write(out)
+    # output.file_to_clipboard(save_path)
+    output.copy_to_clipboard(out)
 
     num_lines = out.count('\n') + 1
     tmux.display_message('Copied {} lines (context: {})'.format(
         num_lines, ctx['name']))
 
-@cmd(key='r')
+@cmd()
+def path_picker():
+    ctx, pattern, _ = common.get_context()
+    out = output.get(ctx, pattern)
+    save_path = os.path.join(common.get_workdir(), 'output.txt')
+    with open(save_path, 'w') as f:
+        f.write(out)
+    pane_id = tmux.get_variable('pane_id')
+    helper = os.path.join(
+        os.path.dirname(os.path.abspath(sys.argv[0])), 'scripts',
+        'fpp_helper.sh')
+    utils.run_in_split_window('cat {} | /home/sergei/opt/fpp/fpp -nfc -ni -c {} {}'.format(
+        save_path, helper, pane_id))
+
+@cmd()
 def search_history():
     ctx, _, _ = common.get_context()
 
-    all_history = history.load_history(ctx['name'])
-    line = utils.select_split(all_history)
+    line = utils.select_split_pipe('cat {}'.format(
+        history.get_history_path(ctx['name'])))
     if line:
         tmux.insert_text(line)
 

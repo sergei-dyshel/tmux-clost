@@ -1,14 +1,15 @@
 import subprocess
-import collections
 import re
+import pipes
+from argparse import Namespace
 
 import tmux
 import common
 import log
 import setup
 
-RunResult = collections.namedtuple('RunResult',
-                                   ['returncode', 'stdout', 'stderr'])
+def shlex_join(args):
+    return ' '.join(pipes.quote(str(a)) for a in args)
 
 class RunError(Exception):
     def __init__(self, command, result):
@@ -20,33 +21,38 @@ class RunError(Exception):
 
     # TODO: use shorten from copy_output (with cutting middle)
     def _shorten(self, out):
-        return out if len(out) < 1024 else "(long output)"
+        return out if not out or len(out) < 1024 else "(long output)"
 
     def __str__(self):
         return "Command '{}' returned {}".format(self.cmd,
                                                  self.result.returncode)
 
+DEV_NULL = open('/dev/null', 'rb+')
 
 def run_command(command,
                 input=None,
                 returncodes=[0],
+                pipe=True,
                 ignore_err=None,
                 **kwargs):
     if isinstance(command, str):
         cmd_str = '"{}"'.format(command)
     else:
         command = map(str, command)
-        # import pipes
-        # cmd_str = ' '.join(map(pipes.quote, command))
         cmd_str = str(command)
     log.debug('Running ' + cmd_str)
     proc = subprocess.Popen(command,
-                     stdout=subprocess.PIPE,
-                     stdin=subprocess.PIPE,
-                     stderr=subprocess.PIPE, **kwargs)
+                     stdout=subprocess.PIPE if pipe else DEV_NULL,
+                     stdin=subprocess.PIPE if input else DEV_NULL,
+                     stderr=subprocess.PIPE if pipe else DEV_NULL, **kwargs)
 
-    stdout, stderr = proc.communicate(input=input)
-    result = RunResult(returncode=proc.returncode, stdout=stdout, stderr=stderr)
+    if pipe or input:
+        stdout, stderr = proc.communicate(input=input)
+    else:
+        stdout = stderr = None
+        proc.wait()
+    result = Namespace(
+        returncode=proc.returncode, stdout=stdout, stderr=stderr)
 
 
     if (returncodes and proc.returncode not in returncodes and
@@ -60,7 +66,7 @@ def capture_output_split(shell_cmd):
     full_cmd = '{shell_cmd} >{out_file}'.format(**locals())
     returncode = run_in_split_window(full_cmd)
     with open(out_file) as outf:
-        return RunResult(
+        return Namespace(
             stdout=outf.read().strip(), stderr='', returncode=returncode)
 
 def run_in_split_window(shell_cmd):
@@ -72,20 +78,18 @@ def run_in_split_window(shell_cmd):
     echo $? > {returncode_file}
     '''.format(**locals())
 
-    tmux._run(['split-window', split_cmd])
-    tmux._run(['wait-for', CHANNEL])
+    try:
+        setup.unbind_enter()
+        tmux.run(['split-window', split_cmd])
+        tmux.run(['wait-for', CHANNEL])
+    finally:
+        setup.bind_enter()
+
     with open(returncode_file) as retf:
         return int(retf.read())
 
-def select_split(lines):
-    lines_file = common.get_temp_file('selector.lines')
-    with open(lines_file, 'w') as f:
-        f.write('\n'.join(map(str.strip, lines)))
-    try:
-        setup.unbind_enter()
-        res = capture_output_split('cat {} | fzf --no-sort'.format(lines_file))
-    finally:
-        setup.bind_enter()
+def select_split_pipe(cmd):
+    res = capture_output_split('{} | fzf --no-sort --tac'.format(cmd))
     if res.returncode == 0:
         return res.stdout
     elif res.returncode == 130:
@@ -94,4 +98,9 @@ def select_split(lines):
         log.error('fzf returned unexpected output: \n' + res.stdout)
         raise Exception('fzf returned unexpected output')
 
+def select_split(lines):
+    lines_file = common.get_temp_file('selector.lines')
+    with open(lines_file, 'w') as f:
+        f.write('\n'.join(map(str.strip, lines)))
+    return select_split_pipe('cat {}'.format(lines_file))
 

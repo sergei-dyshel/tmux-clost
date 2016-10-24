@@ -28,24 +28,3 @@ def bind_enter():
 
 def unbind_enter():
     return tmux.unbind_key('Enter', no_prefix=True)
-
-def run_fzf(input):
-    # unbind_enter()
-    try:
-        fzf_res = utils.run_command(
-            ['fzf-tmux', '-d', '20%', '--no-sort'],
-            returncodes=[0, 130],
-            input=input)
-        if fzf_res.returncode == 130:
-            line = ''
-        else:
-            line = fzf_res.stdout
-            if len(line.splitlines()) > 1:
-                log.error('fzf-tmux returned unexpected output: \n' + line)
-                raise Exception('fzf-tmux returned unexpected output')
-    finally:
-        # bind_enter()
-        pass
-    line = line.strip()
-    return line
-

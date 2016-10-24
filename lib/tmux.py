@@ -1,9 +1,23 @@
 import utils
-
 import log
 
-def _run(command=[], **kwargs):
-    return utils.run_command(['tmux'] + command, **kwargs).stdout
+control_mode = None
+
+class TmuxError(Exception):
+    pass
+
+def run(command, cm=False, **kwargs):
+    if cm:
+        global control_mode
+        if control_mode is None:
+            control_mode = ControlMode()
+        if isinstance(command, list):
+            command = utils.shlex_join(command)
+            return control_mode.run(command)
+    try:
+        return utils.run_command(['tmux'] + command, **kwargs).stdout
+    except utils.RunError as e:
+        return TmuxError(e.result.stdout + e.result.stderr)
 
 def _truncate_middle(string):
     string = string.strip('\n')
@@ -16,17 +30,17 @@ def capture_pane(max_lines=0, filename=None):
     start = -max_lines if max_lines >= 0 else '-'
     cmd = ['capture-pane', '-J']
     cmd += ['-S', start]
-    _run(cmd)
+    run(cmd)
 
     if filename is not None:
         log.debug('Captured to {}', filename)
-        _run(['save-buffer', filename])
+        run(['save-buffer', filename])
         with open(filename) as f:
             out = f.read()
     else:
-        out = _run(['save-buffer', '-'])
+        out = run(['save-buffer', '-'])
 
-    _run(['delete-buffer'])
+    run(['delete-buffer'])
 
     import re
     m = re.search(r'\n\[ \S+ \].*$', out)
@@ -41,15 +55,16 @@ def capture_pane(max_lines=0, filename=None):
 
 
 def insert_text(text):
-    _run(['load-buffer', '-'], input=text)
-    _run(['paste-buffer', '-d', '-r'])
+    run(['load-buffer', '-'], input=text)
+    run(['paste-buffer', '-d', '-r'])
 
 def send_keys(keys, literally=False):
     cmd = ['send-keys']
     if literally:
         cmd.append('-l')
     cmd.extend(keys)
-    _run(cmd)
+    # for some reason send-keys does not work in control mode
+    run(cmd, cm=False)
 
 def backspace(count=1):
     send_keys(['BSpace'] * count)
@@ -59,7 +74,7 @@ def _display_message(msg, stdout=False):
     if stdout:
         cmd.append('-p')
     cmd.append(msg)
-    return _run(cmd)
+    return run(cmd)
 
 def print_message(msg):
     return _display_message(msg, stdout=True)
@@ -85,7 +100,7 @@ def bind_key(key, command, no_prefix=False, key_table=None):
         cmd.extend(['-T', key_table])
     cmd.append(key)
     cmd.extend(command)
-    _run(cmd)
+    run(cmd)
 
 def unbind_key(key=None, all=False, no_prefix=False, key_table=None):
     cmd = ['unbind-key']
@@ -97,15 +112,50 @@ def unbind_key(key=None, all=False, no_prefix=False, key_table=None):
         cmd.extend(['-T', key_table])
     if key:
         cmd.append(key)
-    _run(cmd, ignore_err=r"table .* doesn't exist")
+    run(cmd, ignore_err=r"table .* doesn't exist")
 
 def get_option(opt_name):
-    return _run(['show-options', '-g', '-v', '-q', opt_name]).strip()
+    return run(['show-options', '-g', '-v', '-q', opt_name]).strip()
 
 def set_option(name, value):
-    return _run(['set-option', '-g'] + (['-u', name]
+    return run(['set-option', '-g'] + (['-u', name]
                                         if value is None else [name, value]))
+def get_env(name):
+    return run(['show-environment', '-g', name]).strip()
+
+def set_env(name, value):
+    return run(['set-environment', '-g', name, value]).strip()
 
 def replace_cmd_line(new_text):
     send_keys(['C-e', 'C-u'])
     send_keys([new_text], literally=True)
+
+class ControlModeError(Exception):
+    pass
+
+class ControlMode(object):
+    REGEX = '%begin \d+ \d+ \d+\r\n(.+?\r\n)?%(error|end) \d+ \d+ \d+\r\n'
+
+    def __init__(self):
+        import pexpect
+        self.spawn = pexpect.spawn('tmux -C')
+        self.spawn.delaybeforesend = None
+        self.spawn.delayafterread = None
+        # skip empty output
+        self.spawn.expect(self.REGEX)
+
+    def run(self, cmd):
+        log.debug('Running in Tmux control mode: {}', cmd)
+        self.spawn.sendline(cmd)
+        self.spawn.expect(self.REGEX)
+        m = self.spawn.match
+        out = m.group(1)
+        if out is None:
+            out = ''
+        out = out.replace('\r\n', '\n')
+        if m.group(2) == 'error':
+            raise TmuxError(out)
+        else:
+            return out
+
+
