@@ -61,6 +61,13 @@ def run_command(command,
     return result
 
 
+def unquote(s):
+    for q in ['"', "'"]:
+        if s[0] == q and s[-1] == q:
+            return s[1:-1]
+
+
+
 def capture_output_split(shell_cmd):
     out_file = common.get_temp_file('split.out')
     full_cmd = '{shell_cmd} >{out_file}'.format(**locals())
@@ -89,7 +96,7 @@ def run_in_split_window(shell_cmd):
         return int(retf.read())
 
 def select_split_pipe(cmd):
-    res = capture_output_split('{} | fzf --no-sort --tac'.format(cmd))
+    res = capture_output_split('{} | fzf --no-sort'.format(cmd))
     if res.returncode == 0:
         return res.stdout
     elif res.returncode == 130:

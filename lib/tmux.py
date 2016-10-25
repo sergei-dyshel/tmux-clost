@@ -54,9 +54,12 @@ def capture_pane(max_lines=0, filename=None):
     return out
 
 
-def insert_text(text):
+def insert_text(text, bracketed=False):
     run(['load-buffer', '-'], input=text)
-    run(['paste-buffer', '-d', '-r'])
+    cmd = ['paste-buffer', '-d', '-r']
+    if bracketed:
+        cmd.append('-p')
+    run(cmd)
 
 def send_keys(keys, literally=False):
     cmd = ['send-keys']
@@ -116,6 +119,14 @@ def unbind_key(key=None, all=False, no_prefix=False, key_table=None):
 
 def get_option(opt_name):
     return run(['show-options', '-g', '-v', '-q', opt_name]).strip()
+
+def get_all_options():
+    raw = run(['show-options', '-g'])
+    res = {}
+    for line in raw.splitlines():
+        name, value = line.split(' ', 1)
+        res[name] = utils.unquote(value)
+    return res
 
 def set_option(name, value):
     return run(['set-option', '-g'] + (['-u', name]

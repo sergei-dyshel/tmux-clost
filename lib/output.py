@@ -36,7 +36,8 @@ def get(ctx, pattern):
     return find_out_regex(pattern, lines)
 
 def find_out(pattern, lines):
-    parts = common.re.split(pattern, lines)
+    regex = common.re.compile(pattern)
+    parts = regex.split(lines)[0::(1 + regex.groups)]
     out = None
     for part in reversed(parts):
         part = part.strip()
