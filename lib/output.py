@@ -31,9 +31,10 @@ def file_to_clipboard(path):
 def get(ctx, pattern):
     config = common.get_config()
     max_lines = config.get('max_lines', DEFAULT_MAX_LINES)
-    full_out_path = os.path.join(common.get_workdir(), 'full_output.txt')
-    lines = tmux.capture_pane(max_lines=max_lines, filename=full_out_path)
-    return find_out_regex(pattern, lines)
+    # full_out_path = os.path.join(common.get_workdir(), 'full_output.txt')
+    # lines = tmux.capture_pane(max_lines=max_lines, filename=full_out_path)
+    lines = tmux.capture_pane(max_lines=max_lines)
+    return find_out(pattern, lines)
 
 def find_out(pattern, lines):
     regex = common.re.compile(pattern)

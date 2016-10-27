@@ -3,11 +3,12 @@
 import sys
 import argparse
 
-from lib import log, tmux, commands
+from lib import log, tmux, commands, environment, config
 
 
 def handle_cmd(cmd):
     try:
+        config.read()
         cmd()
     except BaseException as exc:
         if sys.stdin.isatty():
@@ -27,9 +28,15 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('command', choices=commands.list_names())
+    environment.add_args(parser)
 
     args = parser.parse_args()
+    environment.configure(args)
+    log.configure(environment.var.log_file)
+
     log.info('Called with {}', sys.argv[1:])
+    for key, val in vars(environment.var).iteritems():
+        log.debug('{}: {}', key, val)
 
     handle_cmd(commands.get(args.command))
 

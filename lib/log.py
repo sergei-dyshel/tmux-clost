@@ -3,20 +3,18 @@ import sys
 
 _logger = None
 
-def init():
+def configure(log_file=None):
     global _logger
     _logger = logging.getLogger('__main__')
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    if sys.stdin.isatty():
+    if not log_file or log_file == '-':
         handler = logging.StreamHandler(sys.stderr)
-        handler.setFormatter(formatter)
-        _logger.addHandler(handler)
-    log_path = '/tmp/tmux-clost.log'
-    handler = logging.FileHandler(log_path)
+    else:
+        handler = logging.FileHandler(log_file)
+    _logger.addHandler(handler)
     handler.setFormatter(formatter)
     _logger.addHandler(handler)
     _logger.setLevel(logging.DEBUG)
-    return _logger
 
 
 def debug(msg, *args, **kwargs):
@@ -36,8 +34,5 @@ def _log(level, msg, *args, **kwargs):
     full_msg = msg.format(*args, **kwargs) if args or kwargs else msg
     global _logger
     _logger.log(level, full_msg)
-
-# TODO: call from main
-init()
 
 

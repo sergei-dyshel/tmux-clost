@@ -1,0 +1,2 @@
+editor: ${VISUAL:-${EDITOR:-vi}}
+

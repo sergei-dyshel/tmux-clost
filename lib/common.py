@@ -3,7 +3,7 @@ import sys
 import os.path
 import os
 
-import log
+from . import environment, log
 
 try:
     import re2 as re
@@ -44,7 +44,7 @@ def get_config():
     global config
     if config is not None:
         return config
-    config_file = get_config_var('config_file', mandatory=True)
+    config_file = environment.var.config_file
     import yaml
     with open(config_file, 'r') as f:
         config = yaml.load(f)

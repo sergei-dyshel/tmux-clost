@@ -13,6 +13,8 @@ import output
 import utils
 import alias
 
+from . import environment, config
+
 PARAMS_ATTR = '__clost__cmd__'
 KEY_TABLE = 'clost'
 
@@ -60,7 +62,9 @@ def edit_cmd():
     cmd_file = common.get_temp_file('cmd.txt')
     with open(cmd_file, 'w') as f:
         f.write(cmd)
-    editor = common.get_config()['editor']
+    # editor = common.get_config()['editor']
+    # editor = environment.expand_path(config.get_option('editor'))
+    editor = config.get_option('editor')
     res = utils.run_in_split_window('{} {}'.format(editor, cmd_file))
     if res != 0:
         log.info(
@@ -73,13 +77,6 @@ def edit_cmd():
 
 @cmd()
 def save_to_history():
-    if (tmux.get_variable('pane_current_command').strip() not in
-        ['ssh', 'screen', 'tmux'] and
-            tmux.get_variable('alternate_on').strip() == '1'):
-        tmux.send_keys(['Enter'])
-        log.debug('Not intercepting "Enter" on alternate screen')
-        return
-
     ctx, _, cmd = common.get_context(silent=True)
     try:
         newcmd = alias.expand(cmd, ctx)
@@ -109,7 +106,7 @@ def show_context():
 def insert_snippet():
     ctx, _, _ = common.get_context()
 
-    snippets_dir = common.get_config_var('snippets_dir', mandatory=True)
+    snippets_dir = environment.var.snippets_dir
     ctx_snippets_dir = os.path.join(snippets_dir, ctx['name'])
     if not os.path.isdir(ctx_snippets_dir):
         return
@@ -142,14 +139,12 @@ def copy_output():
 def path_picker():
     ctx, pattern, _ = common.get_context()
     out = output.get(ctx, pattern)
-    save_path = os.path.join(common.get_workdir(), 'output.txt')
+    save_path = os.path.join(environment.var.tmp_dir, 'output.txt')
     with open(save_path, 'w') as f:
         f.write(out)
     pane_id = tmux.get_variable('pane_id')
-    helper = os.path.join(
-        os.path.dirname(os.path.abspath(sys.argv[0])), 'scripts',
-        'fpp_helper.sh')
-    utils.run_in_split_window('cat {} | /home/sergei/opt/fpp/fpp -nfc -ni -c {} {}'.format(
+    helper = os.path.join(environment.var.main_dir, 'scripts', 'fpp_helper.sh')
+    utils.run_in_split_window('cat {} | /home/sergei/opt/fpp/fpp -nfc -ai -ni -c {} {}'.format(
         save_path, helper, pane_id))
 
 @cmd()

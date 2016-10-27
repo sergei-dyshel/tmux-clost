@@ -125,7 +125,12 @@ def get_all_options():
     res = {}
     for line in raw.splitlines():
         name, value = line.split(' ', 1)
-        res[name] = utils.unquote(value)
+        value = utils.unquote(value)
+        if value == 'on':
+            value = True
+        elif value == 'off':
+            value = False
+        res[name] = value
     return res
 
 def set_option(name, value):
