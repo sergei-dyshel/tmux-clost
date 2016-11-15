@@ -1,5 +1,6 @@
 import utils
-import log
+
+from . import log
 
 control_mode = None
 
@@ -26,19 +27,32 @@ def _truncate_middle(string):
     else:
         return string[:20] + '...' + string[-20:]
 
-def capture_pane(max_lines=0, filename=None):
-    start = -max_lines if max_lines >= 0 else '-'
-    cmd = ['capture-pane', '-J']
-    cmd += ['-S', start]
-    run(cmd)
+def capture_pane(start=None, dump=False, end=None, filename=None, join=False, escape=False):
+    cmd = ['capture-pane']
+    if join:
+        cmd.append('-J')
+    if escape:
+        cmd.append('-e')
+    if dump:
+        cmd.append('-p')
+    if start is not None:
+        cmd += ['-S', start]
+    if end is not None:
+        cmd += ['-E', end]
+    return run(cmd)
 
+def get_buffer():
+    return run(['save-buffer', '-'])
+
+def capture_lines(start=None, filename=None):
+    capture_pane(start=start, join=True)
     if filename is not None:
         log.debug('Captured to {}', filename)
         run(['save-buffer', filename])
         with open(filename) as f:
             out = f.read()
     else:
-        out = run(['save-buffer', '-'])
+        out = get_buffer()
 
     run(['delete-buffer'])
 
@@ -82,18 +96,11 @@ def _display_message(msg, stdout=False):
 def print_message(msg):
     return _display_message(msg, stdout=True)
 
-def display_message(msg, timeout=None):
-    if timeout is not None:
-        orig_display_time = get_option('display-time')
-        set_option('display-time', timeout)
+def display_message(msg):
     _display_message(msg)
-    if timeout is not None:
-        import time
-        time.sleep(timeout / 1000.0)
-        set_option('display-time', orig_display_time)
 
 def get_variable(var_name):
-    return print_message('#{%s}' % var_name)
+    return print_message('#{%s}' % var_name).strip()
 
 def bind_key(key, command, no_prefix=False, key_table=None):
     cmd = ['bind-key']
@@ -116,6 +123,9 @@ def unbind_key(key=None, all=False, no_prefix=False, key_table=None):
     if key:
         cmd.append(key)
     run(cmd, ignore_err=r"table .* doesn't exist")
+
+def pane_in_mode():
+    return get_variable('pane_in_mode') == '1'
 
 def get_option(opt_name):
     return run(['show-options', '-g', '-v', '-q', opt_name]).strip()
@@ -142,9 +152,9 @@ def get_env(name):
 def set_env(name, value):
     return run(['set-environment', '-g', name, value]).strip()
 
-def replace_cmd_line(new_text):
+def replace_cmd_line(new_text, bracketed=False):
     send_keys(['C-e', 'C-u'])
-    send_keys([new_text], literally=True)
+    insert_text(new_text, bracketed=bracketed)
 
 class ControlModeError(Exception):
     pass

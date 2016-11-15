@@ -1,5 +1,3 @@
 #!/bin/bash -
-pane=$1
-shift
-tmux send-keys -l -t $pane ' ' "$*"
+echo -n ' ' "$*" | tmux load-buffer -b clost_fpp -
 

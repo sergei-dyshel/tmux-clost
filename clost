@@ -2,43 +2,51 @@
 
 import sys
 import argparse
+import os.path
 
-from lib import log, tmux, commands, environment, config
+from lib import log, tmux, command, environment, config, context, common
 
-
-def handle_cmd(cmd):
-    try:
+def handle_cmd(cmd_args):
+    with common.handle_exceptions():
         config.read()
-        cmd()
-    except BaseException as exc:
-        if sys.stdin.isatty():
-            # executed manually by user
-            raise
-        else:
-            # executed by tmux
-            import traceback
-            log.error(traceback.format_exc())
-            msg = 'Clost: failed with {}: {}'.format(exc.__class__.__name__,
-                                                     exc)
-            ERROR_TIMEOUT = 5000
-            tmux.display_message(msg, ERROR_TIMEOUT)
+        ctx = None
+        if cmd_args.cmd_class.requires_context:
+            ctx = context.get_current()
+            if ctx is None:
+                if not cmd_args.cmd_class.silent_no_context:
+                    raise common.ClostError('Could not detect context')
+        cmd = cmd_args.cmd_class()
+        cmd.init(ctx)
+        if ctx:
+            cmd.strip_suggestion()
+        cmd.run()
+    log.info('Finished')
+
+def parse_cmd_args():
+    parser = argparse.ArgumentParser()
+
+    environment.add_args(parser)
+    subparsers = parser.add_subparsers()
+    for cmd_class in command.get_all():
+        cmd_class.add_subparser(subparsers)
+
+    return parser.parse_args()
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    cmd_args = parse_cmd_args()
 
-    parser.add_argument('command', choices=commands.list_names())
-    environment.add_args(parser)
+    environment.configure(cmd_args)
 
-    args = parser.parse_args()
-    environment.configure(args)
-    log.configure(environment.var.log_file)
+    log_file = (os.path.join(environment.get_var('work_dir'), 'all.log')
+                if not sys.stdin.isatty() else None)
+    log.configure(log_file)
 
-    log.info('Called with {}', sys.argv[1:])
-    for key, val in vars(environment.var).iteritems():
+    log.info('Running with arguments {}', sys.argv[1:])
+    for key, val in environment.variables.iteritems():
         log.debug('{}: {}', key, val)
 
-    handle_cmd(commands.get(args.command))
+    handle_cmd(cmd_args)
 
 if __name__ == '__main__':
     main()

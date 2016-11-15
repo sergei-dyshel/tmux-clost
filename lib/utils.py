@@ -6,7 +6,8 @@ from argparse import Namespace
 import tmux
 import common
 import log
-import setup
+
+from . import environment
 
 def shlex_join(args):
     return ' '.join(pipes.quote(str(a)) for a in args)
@@ -69,7 +70,7 @@ def unquote(s):
 
 
 def capture_output_split(shell_cmd):
-    out_file = common.get_temp_file('split.out')
+    out_file = environment.temp_file('split.out')
     full_cmd = '{shell_cmd} >{out_file}'.format(**locals())
     returncode = run_in_split_window(full_cmd)
     with open(out_file) as outf:
@@ -78,7 +79,7 @@ def capture_output_split(shell_cmd):
 
 def run_in_split_window(shell_cmd):
     CHANNEL = 'clost'
-    returncode_file = common.get_temp_file('split.returncode')
+    returncode_file = environment.temp_file('split.returncode')
     split_cmd = '''
     trap "tmux wait-for -S {CHANNEL}" 0
     {shell_cmd}
@@ -86,11 +87,10 @@ def run_in_split_window(shell_cmd):
     '''.format(**locals())
 
     try:
-        setup.unbind_enter()
         tmux.run(['split-window', split_cmd])
         tmux.run(['wait-for', CHANNEL])
     finally:
-        setup.bind_enter()
+        pass
 
     with open(returncode_file) as retf:
         return int(retf.read())
@@ -106,7 +106,7 @@ def select_split_pipe(cmd):
         raise Exception('fzf returned unexpected output')
 
 def select_split(lines):
-    lines_file = common.get_temp_file('selector.lines')
+    lines_file = environment.temp_file('selector.lines')
     with open(lines_file, 'w') as f:
         f.write('\n'.join(map(str.strip, lines)))
     return select_split_pipe('cat {}'.format(lines_file))

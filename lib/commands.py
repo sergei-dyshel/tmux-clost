@@ -7,7 +7,6 @@ import sys
 import common
 import log
 import tmux
-import setup
 import history
 import output
 import utils
@@ -33,15 +32,6 @@ def get(name):
     return globals()[name]
 
 @cmd()
-def init():
-    path = tmux.get_env('PATH')
-    plugin_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-    if plugin_dir not in path:
-        tmux.set_env('PATH', plugin_dir + ':' + path)
-    setup.unbind_enter()
-    setup.bind_enter()
-
-@cmd()
 def help():
     for name in list_names():
         params = getattr(get(name), PARAMS_ATTR)
@@ -59,7 +49,7 @@ def expand_alias():
 @cmd()
 def edit_cmd():
     ctx, _, cmd = common.get_context()
-    cmd_file = common.get_temp_file('cmd.txt')
+    cmd_file = environment.temp_file('cmd.txt')
     with open(cmd_file, 'w') as f:
         f.write(cmd)
     # editor = common.get_config()['editor']
@@ -106,7 +96,7 @@ def show_context():
 def insert_snippet():
     ctx, _, _ = common.get_context()
 
-    snippets_dir = environment.var.snippets_dir
+    snippets_dir = environment.get_var('snippets_dir')
     ctx_snippets_dir = os.path.join(snippets_dir, ctx['name'])
     if not os.path.isdir(ctx_snippets_dir):
         return
@@ -129,7 +119,7 @@ def copy_output():
     # with open(save_path, 'w') as f:
     #     f.write(out)
     # output.file_to_clipboard(save_path)
-    output.copy_to_clipboard(out)
+    clipboard.copy(out)
 
     num_lines = out.count('\n') + 1
     tmux.display_message('Copied {} lines (context: {})'.format(
@@ -139,11 +129,11 @@ def copy_output():
 def path_picker():
     ctx, pattern, _ = common.get_context()
     out = output.get(ctx, pattern)
-    save_path = os.path.join(environment.var.tmp_dir, 'output.txt')
+    save_path = environment.temp_file('output.txt')
     with open(save_path, 'w') as f:
         f.write(out)
     pane_id = tmux.get_variable('pane_id')
-    helper = os.path.join(environment.var.main_dir, 'scripts', 'fpp_helper.sh')
+    helper = os.path.join(environment.get_var('main_dir'), 'scripts', 'fpp_helper.sh')
     utils.run_in_split_window('cat {} | /home/sergei/opt/fpp/fpp -nfc -ai -ni -c {} {}'.format(
         save_path, helper, pane_id))
 

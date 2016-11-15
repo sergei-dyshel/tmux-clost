@@ -7,7 +7,7 @@ def configure(log_file=None):
     global _logger
     _logger = logging.getLogger('__main__')
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    if not log_file or log_file == '-':
+    if not log_file or log_file == '-' or log_file == 'stdout':
         handler = logging.StreamHandler(sys.stderr)
     else:
         handler = logging.FileHandler(log_file)
@@ -15,6 +15,7 @@ def configure(log_file=None):
     handler.setFormatter(formatter)
     _logger.addHandler(handler)
     _logger.setLevel(logging.DEBUG)
+    warning('========================================================')
 
 
 def debug(msg, *args, **kwargs):
@@ -34,5 +35,6 @@ def _log(level, msg, *args, **kwargs):
     full_msg = msg.format(*args, **kwargs) if args or kwargs else msg
     global _logger
     _logger.log(level, full_msg)
+
 
 

@@ -1,2 +1,6 @@
-editor: ${VISUAL:-${EDITOR:-vi}}
-
+options:
+    editor: ${VISUAL:-${EDITOR:-vi}}
+    max_lines: 100000
+    intercept_enter: yes
+    bracketed_paste: no
+    output_file: $work_dir/output.txt

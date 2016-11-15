@@ -5,9 +5,10 @@ import os
 
 import common
 
+from . import environment
+
 def get_history_path(context):
-    workdir = common.get_workdir()
-    history_dir = os.path.join(workdir, 'history')
+    history_dir = environment.get_var('history_dir')
     if not os.path.isdir(history_dir):
         os.makedirs(history_dir)
     return os.path.join(history_dir, context)

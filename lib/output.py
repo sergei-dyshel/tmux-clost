@@ -1,43 +1,25 @@
 #!/usr/bin/env python
 
 import os.path
+import re
 
 import tmux
 import common
 import utils
 import log
 
+from . import config
+
 DEFAULT_MAX_LINES = 10000
 
-def copy_xsel(text=None, file=None):
-    cmd = 'xsel --input --clipboard'
-    if file is not None:
-        cmd = 'cat {} | {}'.format(file, cmd)
-    return utils.run_command(cmd, shell=True, input=text).stdout
-
-def copy_xclip(text=None, file=''):
-    cmd = 'xclip -selection clipboard {}'.format(file)
-    #  http://stackoverflow.com/questions/19101735/keyboard-shortcuts-in-tmux-deactivated-after-using-xclip/21190234#21190234
-    return utils.run_command(cmd, shell=True, pipe=False, input=text)
-
-def copy_to_clipboard(out):
-    # fixes problems with improper characters (such as line endings)
-    # out = unicode(out, encoding='utf8', errors='ignore')
-    copy_xclip(text=out)
-
-def file_to_clipboard(path):
-    copy_xclip(file=path)
-
-def get(ctx, pattern):
-    config = common.get_config()
-    max_lines = config.get('max_lines', DEFAULT_MAX_LINES)
+def get(pattern, max_lines=None):
     # full_out_path = os.path.join(common.get_workdir(), 'full_output.txt')
     # lines = tmux.capture_pane(max_lines=max_lines, filename=full_out_path)
-    lines = tmux.capture_pane(max_lines=max_lines)
+    lines = tmux.capture_lines(start=-max_lines)
     return find_out(pattern, lines)
 
 def find_out(pattern, lines):
-    regex = common.re.compile(pattern)
+    regex = re.compile(pattern)
     parts = regex.split(lines)[0::(1 + regex.groups)]
     out = None
     for part in reversed(parts):
@@ -65,3 +47,4 @@ def find_out_regex(pattern, lines):
             end = match.start()
             # Skipping command
     raise Exception('No output to copy')
+

@@ -4,6 +4,67 @@ import __main__
 
 from . import environment, log
 
+context_configs = []
+global_options = None
+
+def read():
+    import yaml
+    user_file = environment.get_var('config_file')
+    global context_configs
+    user_cfg = {}
+    if user_file and os.path.isfile(user_file):
+        with open(user_file) as f:
+            user_cfg = yaml.load(f)
+        context_configs = user_cfg.get('contexts', [])
+
+    default_file = os.path.join(environment.get_var('main_dir'), 'config.yml')
+    with open(default_file) as f:
+        default_cfg = yaml.load(f)
+
+    global global_options
+    global_options = CombinedOptions(
+        DictOptions(user_cfg.get('options')),
+        DictOptions(default_cfg['options']))
+
+
+class BaseOptions(object):
+    def get_option(self, opt_name, cmd_name=None):
+        raise NotImplementedError
+
+
+class DictOptions(BaseOptions):
+    def __init__(self, dict_):
+        self._dict = dict_
+    def get_option(self, opt_name, cmd_name=None):
+        if not self._dict:
+            return None
+        try:
+            return self._dict[cmd_name][opt_name]
+        except KeyError:
+            try:
+                return self._dict[opt_name]
+            except KeyError:
+                return None
+
+
+class CombinedOptions(BaseOptions):
+    def __init__(self, *options_list):
+        self._options_list = options_list
+    def get_option(self, opt_name, cmd_name=None):
+        for options in self._options_list:
+            res = options.get_option(opt_name, cmd_name)
+            if res is not None:
+                return res
+        return None
+
+
+
+
+
+def get_contexts():
+    global user_cfg
+    return user_cfg['contexts']
+
 def parse_bool(value):
     if isinstance(value, bool):
         return value
@@ -27,43 +88,6 @@ def parse_value(value, type):
         raise Exception('Can not parse "{}" as {}'.format(value,
                                                           type.__name__))
     assert False
-
-def get_nested_dict_value(nested_dict, path):
-    if not isinstance(nested_dict, dict):
-        return nested_dict
-    try:
-        return get_nested_dict_value(nested_dict[path[0]], path[1:])
-    except (KeyError, IndexError):
-        return None
-
-user_cfg = {}
-default_cfg = {}
-
-def read():
-    import yaml
-    user_file = environment.var.config_file
-    default_file = os.path.join(environment.var.main_dir, 'config.yml')
-    if user_file and os.path.isfile(user_file):
-        with open(user_file) as f:
-            global user_cfg
-            user_cfg = yaml.load(f)
-    with open(default_file) as f:
-        global default_cfg
-        default_cfg = yaml.load(f)
-
-def get_option(name, cmd=None):
-    def get_cfg_option(cfg, name, cmd):
-        res = None
-        if cmd is not None:
-            res = get_nested_dict_value(cfg, [cmd, name])
-        if res is None:
-            res = get_nested_dict_value(cfg, [name])
-        return res
-
-    res = get_cfg_option(user_cfg, name, cmd)
-    if res is None:
-        res = get_cfg_option(default_cfg, name, cmd)
-    return res
 
 
 
