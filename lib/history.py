@@ -15,8 +15,18 @@ def get_history_path(context):
 
 def save_to_history(context, cmd):
     history_path = get_history_path(context)
-    with open(history_path) as f:
-        lines = f.readlines()
+    hist_dir = os.path.dirname(history_path)
+    # TODO: make a util function
+    if not os.path.isdir(hist_dir):
+        try:
+            os.makedirs(hist_dir)
+        except OSError:
+            pass
+    if os.path.isfile(history_path):
+        with open(history_path) as f:
+            lines = f.readlines()
+    else:
+        lines = []
     with open(history_path, 'w') as f:
         f.write(cmd + '\n')
         f.writelines(line for line in lines if line != cmd + '\n')
