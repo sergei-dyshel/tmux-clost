@@ -2,6 +2,8 @@ import subprocess
 import re
 import pipes
 from argparse import Namespace
+import os
+import time
 
 import tmux
 import common
@@ -67,15 +69,32 @@ def unquote(s):
         if s[0] == q and s[-1] == q:
             return s[1:-1]
 
+def wait(pred, delay=1, timeout=10):
+    elapsed = 0
+    while elapsed <= timeout:
+        if pred():
+            return
+        time.sleep(delay)
+        elapsed += delay
+    raise Exception('Timeout')
+
 
 
 def capture_output_split(shell_cmd):
     out_file = environment.temp_file('split.out')
+    if os.path.isfile(out_file):
+        os.remove(out_file)
     full_cmd = '{shell_cmd} >{out_file}'.format(**locals())
     returncode = run_in_split_window(full_cmd)
+
+    def pred():
+        statinfo = os.stat(out_file)
+        return statinfo.st_size != 0
+    wait(pred, delay=0.1, timeout=5)
     with open(out_file) as outf:
-        return Namespace(
-            stdout=outf.read().strip(), stderr='', returncode=returncode)
+        stdout = outf.read().strip()
+    return Namespace(
+        stdout=stdout, stderr='', returncode=returncode)
 
 def run_in_split_window(shell_cmd):
     CHANNEL = 'clost'
