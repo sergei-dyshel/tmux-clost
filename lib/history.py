@@ -5,7 +5,7 @@ import os
 
 import common
 
-from . import environment
+from . import environment, gen_history
 
 def get_history_path(context):
     history_dir = environment.get_var('history_dir')
@@ -30,3 +30,8 @@ def save_to_history(context, cmd):
     with open(history_path, 'w') as f:
         f.write(cmd + '\n')
         f.writelines(line for line in lines if line != cmd + '\n')
+        # f.write(gen_history.current_line(cmd) + '\n')
+        # f.writelines(
+        #     line for line in lines
+        #     if gen_history.parse_line(
+        #         line, cmd_only=True) != cmd)

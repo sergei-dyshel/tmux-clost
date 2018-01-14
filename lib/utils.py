@@ -88,7 +88,10 @@ def capture_output_split(shell_cmd):
     returncode = run_in_split_window(full_cmd)
 
     def pred():
-        statinfo = os.stat(out_file)
+        try:
+            statinfo = os.stat(out_file)
+        except OSError:
+            return False
         return statinfo.st_size != 0
     wait(pred, delay=0.1, timeout=5)
     with open(out_file) as outf:
