@@ -112,7 +112,8 @@ class escape_codes(Command):
 
 class search_history(Command):
     def run(self):
-        cmd = 'cat {}'.format(history.get_history_path(self.ctx.name))
+        cmd = 'cat {} | cut -d" " -f2- '.format(
+                history.get_history_path(self.ctx.name))
         cmd_line = self.ctx.cmd_line
         if cmd_line:
             escaped = cmd_line.replace('"', r'\"')
@@ -256,6 +257,7 @@ class cmd_line(Command):
                 raise common.ClostError('No command line found below')
         log.debug('Captured command line: {}', res)
         sys.stdout.write(res)
+
 
 def get_all():
     return [x for x in globals().itervalues()
