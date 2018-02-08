@@ -36,7 +36,7 @@ def get_current():
     pane = tmux.capture_lines()
     for cfg in config.context_configs:
         for pattern in cfg['patterns']:
-            search_pattern = '(?:^|\n)' + pattern + '(?: (?P<cmdline>.*))?$'
+            search_pattern = pattern + '(?: (?P<cmdline>.*))?$'
             m = re.search(search_pattern, pane)
             if m:
                 cmd = (m.group('cmdline') or '').strip()
