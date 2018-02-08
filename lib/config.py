@@ -1,94 +1,51 @@
-import os.path
 import os
-import __main__
+import os.path
 
-from . import environment, log
+
+from .environment import env
+from . import log
+
 
 context_configs = []
 global_options = None
 
-def read():
-    import yaml
-    user_file = environment.get_var('config_file')
-    global context_configs
-    user_cfg = {}
-    if user_file and os.path.isfile(user_file):
-        with open(user_file) as f:
-            user_cfg = yaml.load(f)
-        context_configs = user_cfg.get('contexts', [])
 
-    default_file = os.path.join(environment.get_var('main_dir'), 'config.yml')
-    with open(default_file) as f:
-        default_cfg = yaml.load(f)
+class Config(object):
+    options = {}
+    contexts = []
 
-    global global_options
-    global_options = CombinedOptions(
-        DictOptions(user_cfg.get('options')),
-        DictOptions(default_cfg['options']))
+    def _add_context(self, context, is_user):
+        ctx_names = [ctx['name'] for ctx in self.contexts]
+        if context['name'] in ctx_names:
+            if is_user:
+                log.warning('Context {} repeats in user config', context['name'])
+            return
+        context['options'] = context.get('options', {})
+        self.contexts.append(context)
 
+    def read(self):
+        import yaml
+        user_file = env.vars['config_file']
+        user_cfg = {}
+        if user_file:
+            if os.path.isfile(user_file):
+                with open(user_file) as f:
+                    user_cfg = yaml.load(f)
+            else:
+                log.warning('User config file {} does not exists, skipping',
+                            user_file)
 
-class BaseOptions(object):
-    def get_option(self, opt_name, cmd_name=None):
-        raise NotImplementedError
+        default_file = os.path.join(env.src_dir, 'config.yml')
+        with open(default_file) as f:
+            default_cfg = yaml.load(f)
 
+        self.options = default_cfg.get('options', {})
+        self.options.update(user_cfg.get('options', {}))
 
-class DictOptions(BaseOptions):
-    def __init__(self, dict_):
-        self._dict = dict_
-    def get_option(self, opt_name, cmd_name=None):
-        if not self._dict:
-            return None
-        try:
-            return self._dict[cmd_name][opt_name]
-        except KeyError:
-            try:
-                return self._dict[opt_name]
-            except KeyError:
-                return None
-
-
-class CombinedOptions(BaseOptions):
-    def __init__(self, *options_list):
-        self._options_list = options_list
-    def get_option(self, opt_name, cmd_name=None):
-        for options in self._options_list:
-            res = options.get_option(opt_name, cmd_name)
-            if res is not None:
-                return res
-        return None
+        for ctx in user_cfg.get('contexts', []):
+            self._add_context(ctx, is_user=True)
+        for ctx in default_cfg['contexts']:
+            self._add_context(ctx, is_user=False)
 
 
-
-
-
-def get_contexts():
-    global user_cfg
-    return user_cfg['contexts']
-
-def parse_bool(value):
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, basestring):
-        if value.lower() in ['on', 'true', 'yes', 'y']:
-            return True
-        elif value.lower() in ['off', 'false', 'no', 'n']:
-            return False
-        else:
-            raise ValueError('Can not parse boolean "{}"'.format(value))
-
-def parse_value(value, type):
-    try:
-        if type in [int, str]:
-            if isinstance(value, bool):
-                raise ValueError
-            return type(value)
-        elif type == bool:
-            return parse_bool(value)
-    except ValueError:
-        raise Exception('Can not parse "{}" as {}'.format(value,
-                                                          type.__name__))
-    assert False
-
-
-
-
+config = Config()

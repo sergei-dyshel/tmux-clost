@@ -3,4 +3,12 @@ options:
     max_lines: 100000
     intercept_enter: yes
     bracketed_paste: no
+    suggestion_color_escape_code: []
     output_file: $work_dir/output.txt
+    allow_wait_for_prompt: yes
+    wait_for_prompt_monitor_interval: 3
+contexts:
+    - name: bash
+      patterns:
+          - '\[root@.*\]#'
+          - '\[\S+@.\S+\]\$'

@@ -1,74 +1,70 @@
 import os.path
 import os
-import __main__
 import argparse
 import string
+import platform
+import __main__
 
-def expand_path(path):
-    if not path:
-        return path
-    path = os.path.expanduser(path)
-    return string.Template(path).substitute(os.environ, **variables)
+from . import tmux, log
 
 
-def mkdir_p(path):
-    try:
+_VAR_DEFS = [('work_dir', '~/.tmux-clost', 'Working directory'),
+             ('config_file', '${work_dir}/config.yml',
+              'User YAML configuration'),
+             ('history_dir', '${work_dir}/history',
+              'Directory with history files'),
+             ('snippets_dir', '${work_dir}/snippets',
+              'Directory with snippets')]
+
+def mkdir(path):
+    if not os.path.isdir(path):
         os.makedirs(path)
-    except OSError as e:
-        if 'File exists' not in str(e):
-            raise
-
-def get_env_name(var_name):
-    return 'CLOST_' + var_name.upper()
-
-VARS = [
-    ('main_dir', os.path.dirname(os.path.abspath(__main__.__file__)),
-     'Directory with source code'),
-    ('work_dir', '~/.tmux-clost', 'Working directory'),
-    # ('log_file', '$CLOST_WORK_DIR/all.log', 'Log file path'),
-    ('tmp_dir', '$CLOST_WORK_DIR/tmp', 'Directory for temporary files'),
-    ('config_file', '$CLOST_WORK_DIR/config.yml', 'User YAML configuration'),
-    ('snippets_dir', '$CLOST_WORK_DIR/snippets', 'Directory with snippets'),
-    ('history_dir', '$CLOST_WORK_DIR/history', 'Directory where history saved'),
-]
-
-def add_args(parser):
-    for name, default, help in VARS:
-        arg_name = '--' + name.replace('_', '-')
-        arg_help = '{} (default: ${} or {})'.format(
-            help, get_env_name(name), default)
-        meta = ('DIR' if name.endswith('_dir') else 'FILE'
-                if name.endswith('_file') else None)
-        parser.add_argument(arg_name, metavar=meta, help=arg_help)
-
-def temp_file(name):
-    return os.path.join(get_var('tmp_dir'), name)
 
 
-# TODO: use just 'variables' instead
-def get_var(var_name):
-    global variables
-    return  variables[var_name]
+class Environment(object):
+    exec_path = os.path.abspath(__main__.__file__)
+    src_dir = os.path.dirname(os.path.abspath(__main__.__file__))
+    vars = dict(hostname=platform.node())
 
-variables = {}
+    def temp_file_path(self, name):
+        tmp_dir = os.path.join(self.vars['work_dir'], 'tmp')
+        mkdir(tmp_dir)
+        return os.path.join(tmp_dir, name)
 
-def configure(args):
-    arg_vars = vars(args)
-    for name, default, _ in VARS:
-        env = get_env_name(name)
-        val = (arg_vars[name] or os.environ.get(
-            env, expand_path(default)))
-        os.environ[env] = val
-        if name.endswith('_dir'):
-            mkdir_p(val)
-        global variables
-        variables[name] = val
+    @classmethod
+    def add_args(cls, parser):
+        for name, default, help in _VAR_DEFS:
+            arg_name = '--' + name.replace('_', '-')
+            arg_help = '{} (default: {})'.format(help, default)
+            meta = ('DIR' if name.endswith('_dir') else 'FILE'
+                    if name.endswith('_file') else None)
+            parser.add_argument(arg_name, metavar=meta, help=arg_help)
+
+    def _expand_path(self, path):
+        path = os.path.expanduser(path)
+        return os.path.abspath(string.Template(path).substitute(self.vars))
+
+    def init(self, args):
+        arg_vars = vars(args)
+        for name, default, _ in _VAR_DEFS:
+            val = None
+            env_name = 'CLOST_' + name.upper()
+            if arg_vars[name] is not None:
+                val = os.path.abspath(arg_vars[name])
+            if not val and env_name in os.environ:
+                    val = os.environ[env_name]
+            if not val:
+                val = tmux.get_option(name, clost=True)
+            if not val:
+                val = tmux.get_env(env_name)
+            if not val:
+                val = self._expand_path(default)
+            self.vars[name] = val
+
+    def dump(self):
+        log.info('Environment:')
+        for name, _, _ in _VAR_DEFS:
+            log.info('{} = {}'.format(name, self.vars[name]))
 
 
-
-
-
-
-
-
-
+env = Environment()

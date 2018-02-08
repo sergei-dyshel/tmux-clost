@@ -6,10 +6,11 @@ import contextlib
 
 import common
 
-from . import environment, gen_history
+from . environment import env
+from . import gen_history
 
 def get_history_path(context):
-    history_dir = environment.get_var('history_dir')
+    history_dir = env.vars['history_dir']
     if not os.path.isdir(history_dir):
         os.makedirs(history_dir)
     return os.path.join(history_dir, context)

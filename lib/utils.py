@@ -1,34 +1,51 @@
 import subprocess
 import re
 import pipes
-from argparse import Namespace
 import os
 import time
 
-import tmux
-import common
-import log
-
-from . import environment
+from . import log
 
 def shlex_join(args):
     return ' '.join(pipes.quote(str(a)) for a in args)
 
-class RunError(Exception):
-    def __init__(self, command, result):
-        self.cmd = command
-        self.result = result
-        log.error(
-            "Command '{}' exited with status {} with STDOUT:\n{}\nSTDERR:\n{}",
-            command, result.returncode, self._shorten(result.stdout), self._shorten(result.stderr))
 
-    # TODO: use shorten from copy_output (with cutting middle)
-    def _shorten(self, out):
-        return out if not out or len(out) < 1024 else "(long output)"
+def shorten(s, max_len, balance=0.5, separator='...'):
+    if len(s) <= max_len:
+        return s
+    total = max_len - len(separator)
+    left = int(total * balance)
+    right = total - left
+    return s[0:left] + separator + s[-right:]
+
+def dashes(s):
+    return s.replace('_', '-')
+
+
+def count_lines(s):
+    return s.count('\n') + 1
+
+
+class RunResult(object):
+    def __init__(self, stdout='', stderr='', returncode=0):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
 
     def __str__(self):
-        return "Command '{}' returned {}".format(self.cmd,
-                                                 self.result.returncode)
+        return 'RunResult(returncode={}, stdout={}, stderr={})'.format(
+                self.returncode, repr(shorten(self.stdout, 40)),
+                repr(shorten(self.stderr, 40)))
+
+
+class RunError(Exception):
+    def __init__(self, cmd, result):
+        self.cmd = cmd
+        self.result = result
+
+    def __str__(self):
+        return "Command '{}' exited with {}".format(self.cmd, self.result)
+
 
 DEV_NULL = open('/dev/null', 'rb+')
 
@@ -37,6 +54,7 @@ def run_command(command,
                 returncodes=[0],
                 pipe=True,
                 ignore_err=None,
+                env=None,
                 **kwargs):
     if isinstance(command, str):
         cmd_str = '"{}"'.format(command)
@@ -44,17 +62,26 @@ def run_command(command,
         command = map(str, command)
         cmd_str = str(command)
     log.debug('Running ' + cmd_str)
-    proc = subprocess.Popen(command,
-                     stdout=subprocess.PIPE if pipe else DEV_NULL,
-                     stdin=subprocess.PIPE if input else DEV_NULL,
-                     stderr=subprocess.PIPE if pipe else DEV_NULL, **kwargs)
+
+    if env:
+        new_env = os.environ.copy()
+        new_env.update(env)
+    else:
+        new_env = None
+    proc = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE if pipe else DEV_NULL,
+            stdin=subprocess.PIPE if input else DEV_NULL,
+            stderr=subprocess.PIPE if pipe else DEV_NULL,
+            env=new_env,
+            **kwargs)
 
     if pipe or input:
         stdout, stderr = proc.communicate(input=input)
     else:
         stdout = stderr = None
         proc.wait()
-    result = Namespace(
+    result = RunResult(
         returncode=proc.returncode, stdout=stdout, stderr=stderr)
 
 
@@ -68,68 +95,4 @@ def unquote(s):
     for q in ['"', "'"]:
         if s[0] == q and s[-1] == q:
             return s[1:-1]
-
-def wait(pred, delay=1, timeout=10):
-    elapsed = 0
-    while elapsed <= timeout:
-        if pred():
-            return
-        time.sleep(delay)
-        elapsed += delay
-    raise Exception('Timeout')
-
-
-
-def capture_output_split(shell_cmd):
-    out_file = environment.temp_file('split.out')
-    if os.path.isfile(out_file):
-        os.remove(out_file)
-    full_cmd = '{shell_cmd} >{out_file}'.format(**locals())
-    returncode = run_in_split_window(full_cmd)
-
-    def pred():
-        try:
-            statinfo = os.stat(out_file)
-        except OSError:
-            return False
-        return statinfo.st_size != 0
-    wait(pred, delay=0.1, timeout=5)
-    with open(out_file) as outf:
-        stdout = outf.read().strip()
-    return Namespace(
-        stdout=stdout, stderr='', returncode=returncode)
-
-def run_in_split_window(shell_cmd):
-    CHANNEL = 'clost'
-    returncode_file = environment.temp_file('split.returncode')
-    split_cmd = '''
-    trap "tmux wait-for -S {CHANNEL}" 0
-    {shell_cmd}
-    echo $? > {returncode_file}
-    '''.format(**locals())
-
-    try:
-        tmux.run(['split-window', split_cmd])
-        tmux.run(['wait-for', CHANNEL])
-    finally:
-        pass
-
-    with open(returncode_file) as retf:
-        return int(retf.read())
-
-def select_split_pipe(cmd):
-    res = capture_output_split('{} | fzf --no-sort'.format(cmd))
-    if res.returncode == 0:
-        return res.stdout
-    elif res.returncode == 130:
-        return ''
-    else:
-        log.error('fzf returned unexpected output: \n' + res.stdout)
-        raise Exception('fzf returned unexpected output')
-
-def select_split(lines):
-    lines_file = environment.temp_file('selector.lines')
-    with open(lines_file, 'w') as f:
-        f.write('\n'.join(map(str.strip, lines)))
-    return select_split_pipe('cat {}'.format(lines_file))
 

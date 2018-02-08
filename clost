@@ -3,8 +3,18 @@
 import sys
 import argparse
 import os.path
+import fcntl
+import os
 
-from lib import log, tmux, command, environment, config, context, common
+from lib.environment import env
+from lib.config import config
+from lib import log, tmux, command,context, common
+
+
+def acquire_lock():
+    fd = os.open(env.vars['work_dir'], os.O_RDONLY)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+
 
 def handle_cmd(cmd_args):
     with common.handle_exceptions():
@@ -16,16 +26,19 @@ def handle_cmd(cmd_args):
                 if not cmd_args.cmd_class.silent_no_context:
                     raise common.ClostError('Could not detect context')
         cmd = cmd_args.cmd_class()
-        cmd.init(ctx)
+        cmd.init(ctx, vars(cmd_args))
         if ctx:
             cmd.strip_suggestion()
         cmd.run()
     log.info('Finished')
 
+
 def parse_cmd_args():
     parser = argparse.ArgumentParser()
 
-    environment.add_args(parser)
+    env.add_args(parser)
+    parser.add_argument('-d', '--debug', action='store_true')
+    # TODO: reenable
     subparsers = parser.add_subparsers()
     for cmd_class in command.get_all():
         cmd_class.add_subparser(subparsers)
@@ -36,15 +49,18 @@ def parse_cmd_args():
 def main():
     cmd_args = parse_cmd_args()
 
-    environment.configure(cmd_args)
+    env.init(cmd_args)
 
-    log_file = (os.path.join(environment.get_var('work_dir'), 'all.log')
-                if not sys.stdin.isatty() else None)
+    acquire_lock()
+
+    if sys.stdin.isatty() or cmd_args.debug:
+        log_file = None
+    else:
+        log_file = os.path.join(env.vars['work_dir'], 'all.log')
     log.configure(log_file)
 
     log.info('Running with arguments {}', sys.argv[1:])
-    for key, val in environment.variables.iteritems():
-        log.debug('{}: {}', key, val)
+    env.dump()
 
     handle_cmd(cmd_args)
 

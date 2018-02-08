@@ -2,9 +2,12 @@ import os.path
 import re
 import inspect
 import sys
+import json
 
-from . import (alias, tmux, log, history, config, common, utils, output,
-               environment, clipboard, context)
+from .environment import env
+from .config import config
+from . import (alias, tmux, log, history, common, utils, output,
+               clipboard, context, split)
 
 def single_to_list(x):
     return x if isinstance(x, list) else [] if x is None else [x]
@@ -12,16 +15,24 @@ def single_to_list(x):
 class Command(object):
     requires_context = True
     silent_no_context = False
-    args = []
+    opt_arg_defs = []
+    pos_arg_defs = []
 
-    def init(self, ctx=None):
+    def init(self, ctx, args):
         self.ctx = ctx
+        self.args = args
 
     def run(self):
         raise NotImplementedError
 
     def get_option(self, opt_name):
-        return self.ctx.options.get_option(opt_name, self.name)
+        try:
+            return self.args[opt_name]
+        except KeyError:
+            try:
+                return self.ctx.options[opt_name]
+            except KeyError:
+                return config.options[opt_name]
 
     @classmethod
     def name(cls):
@@ -29,10 +40,10 @@ class Command(object):
 
     @classmethod
     def add_subparser(cls, subparsers):
-        subparser = subparsers.add_parser(cls.name().replace('_', '-'))
+        subparser = subparsers.add_parser(utils.dashes(cls.name()))
         subparser.set_defaults(cmd_class=cls)
-        for arg_name, arg_type, arg_help in cls.args:
-            name_dashes = arg_name.replace('_', '-')
+        for arg_name, arg_type, arg_help in cls.opt_arg_defs:
+            name_dashes = utils.dashes(arg_name)
             if arg_type == bool:
                 subparser.add_argument('--' + name_dashes, dest=arg_name,
                     action='store_true', help=arg_help)
@@ -42,6 +53,9 @@ class Command(object):
             else:
                 subparser.add_argument('--' + name_dashes,
                     dest=arg_name, type=arg_type, help=arg_help)
+        for arg_name, arg_type, arg_help in cls.pos_arg_defs:
+            name_dashes = utils.dashes(arg_name)
+            subparser.add_argument(arg_name, type=arg_type, help=arg_help)
 
     def strip_suggestion(self):
         escape_code_list = single_to_list(
@@ -51,26 +65,40 @@ class Command(object):
         _, splits = context.capture_escaped_line()
         while splits:
             last = splits[-1]
-            if not last or context.is_escape_code(last):
+            if context.is_escape_code(last):
                 del splits[-1]
                 continue
             break
-        log.info(splits)
-        if len(splits) <= 1 or splits[-2] not in escape_code_list:
+        log.info('Splitted cmd with escape codes: {}', splits)
+        if not splits:
             return
+
         suggestion = splits[-1]
+        del splits[-1]
+
+        has_suggestion_escape = False
+        while splits:
+            last = splits[-1]
+            if not context.is_escape_code(last):
+                break
+            if last in escape_code_list:
+                has_suggestion_escape = True
+                break
+            del splits[-1]
+
+        if not has_suggestion_escape:
+            return
+
         log.debug('Suggestion: {}', suggestion)
 
         if self.ctx.cmd_line.endswith(suggestion):
             self.ctx.cmd_line = self.ctx.cmd_line[0:-len(suggestion)]
-            log.debug('Stripped suggestion')
+        else:
+            log.error('Error stripping suggestion')
 
 
 class press_enter(Command):
     silent_no_context = True
-    args = [
-        ('auto_expand_aliases', bool, 'Automatically expand aliases')
-    ]
 
     def run(self):
         if self.ctx is None or not self.ctx.cmd_line:
@@ -118,7 +146,7 @@ class search_history(Command):
         if cmd_line:
             escaped = cmd_line.replace('"', r'\"')
             cmd = cmd + '| grep -F -- "{}"'.format(escaped)
-        line = utils.select_split_pipe(cmd)
+        line = split.select_split_pipe(cmd)
         if line:
             tmux.replace_cmd_line(
                 line, bracketed=self.get_option('bracketed_paste'))
@@ -142,7 +170,7 @@ class copy_output(Command):
 
 class last_output(Command):
     def run(self):
-        out = output.get(self.ctx.pattern, self.get_option('max_lines'))
+        out = self.ctx.get_output()
         sys.stdout.write(out)
         num_lines = out.count('\n') + 1
         common.display_status('Captured {} lines (context: {})', num_lines,
@@ -164,13 +192,13 @@ class path_picker(Command):
 
 class insert_snippet(Command):
     def run(self):
-        snippets_dir = environment.get_var('snippets_dir')
+        snippets_dir = env.vars['snippets_dir']
         ctx_snippets_dir = os.path.join(snippets_dir, self.ctx.name)
         if not os.path.isdir(ctx_snippets_dir):
             return
         snippet_names = os.listdir(ctx_snippets_dir)
 
-        snippet_name = utils.select_split(snippet_names)
+        snippet_name = split.select_split(snippet_names)
         if not snippet_name:
             return
 
@@ -180,30 +208,35 @@ class insert_snippet(Command):
 
 class edit_cmd(Command):
     def run(self):
-        cmd_file = environment.temp_file('cmd.txt')
+        cmd_file = env.temp_file_path('cmd.txt')
         with open(cmd_file, 'w') as f:
             f.write(self.ctx.cmd_line)
         # editor = common.get_config()['editor']
         # editor = environment.expand_path(config.get_option('editor'))
         editor = self.get_option('editor')
-        res = utils.run_in_split_window('{} {}'.format(editor, cmd_file))
+        res = split.run_in_split_window(
+                '{} {}'.format(editor, cmd_file), capture_output=False)
         if res != 0:
             log.info(
                 'Editing command line was cancelled (editor exited with status {})',
                 res)
             return
         with open(cmd_file) as f:
-            tmux.replace_cmd_line(
-                f.read().strip(), bracketed=self.get_option('bracketed_paste'))
+            new_cmd = f.read().strip()
+            if new_cmd == self.ctx.cmd_line:
+                log.info('Command line not changed during editing')
+            else:
+                tmux.replace_cmd_line(
+                        new_cmd, bracketed=self.get_option('bracketed_paste'))
 
 
 class show_context(Command):
     def run(self):
-        print '''tmux-clost current context:
-        CONTEXT: {self.ctx.name}
-        PATTERN: {self.ctx.pattern}
-        CMD: {self.ctx.cmd_line}
-        '''.format(**locals())
+        sys.stdout.write('''tmux-clost current context:
+CONTEXT: {self.ctx.name}
+PATTERN: {self.ctx.pattern}
+CMD: {self.ctx.cmd_line}
+'''.format(**locals()))
 
 class prev_prompt(Command):
     def run(self):
@@ -257,6 +290,86 @@ class cmd_line(Command):
                 raise common.ClostError('No command line found below')
         log.debug('Captured command line: {}', res)
         sys.stdout.write(res)
+
+
+
+class sleep(Command):
+    def run(self):
+        import time
+        time.sleep(10)
+
+
+class wait_for_prompt(Command):
+    requires_context = False
+    pos_arg_defs = [('cmd', str, 'Command to run')]
+
+    def run(self):
+        tmux.set_option(
+                'wait_for_prompt_pane',
+                tmux.get_variable('pane_id'),
+                clost=True,
+                window=True)
+        tmux.set_option(
+                'wait_for_prompt_cmd',
+                self.args['cmd'],
+                clost=True,
+                window=True)
+        tmux.set_option('monitor-silence',
+                        config.options['wait_for_prompt_monitor_interval'])
+
+
+class check_for_prompt(Command):
+    requires_context = False
+    pos_arg_defs = [('window_id', str,
+                     'ID of window on which silence occured')]
+
+    def _disable_waiting(self, target=None):
+        tmux.set_option('monitor-silence', 0, window=True, target=target)
+        tmux.set_option('wait_for_prompt_pane', None,
+                clost=True, window=True, target=target)
+        tmux.set_option('wait_for_prompt_cmd', None,
+                clost=True, window=True, target=target)
+
+    def run(self):
+        win_id = self.args['window_id']
+        pane_id = tmux.get_option(
+                'wait_for_prompt_pane', clost=True, window=True)
+
+        if not pane_id:
+            log.warning('Not waiting for prompt in this window')
+        elif pane_id not in tmux.list_panes(target=win_id):
+            log.warning('The pane waiting for prompt no longer belongs to this window')
+            self._disable_monitor(target=win_id)
+        elif context.get_current(target=pane_id):
+            log.info('Pane reached prompt')
+            cmd = tmux.get_option(
+                    'wait_for_prompt_cmd', clost=True, window=True)
+            env = dict(
+                    TMUX_WINDOW=tmux.get_variable('window_name', pane=pane_id))
+            utils.run_command(cmd, shell=True, env=env, pipe=True)
+        else:
+            log.info('Prompt not detected, continuing waiting...')
+            return
+
+        self._disable_waiting(target=win_id)
+
+
+class configure(Command):
+    requires_context = False
+
+    def _bind_cmd(self, key, cmd, **kwargs):
+        tmux.set_option('@clost', env.exec_path, global_=True)
+        return tmux.bind_key(key, ['run-shell', '-b', '#{@clost} ' + cmd], **kwargs)
+
+    def run(self):
+        if config.options['intercept_enter']:
+            tmux.bind_key('Enter', ['send-keys', 'Enter'])
+            self._bind_cmd('Enter', 'press-enter', table='root')
+
+        if config.options['allow_wait_for_prompt']:
+            tmux.set_option('silence-action', 'any', global_=True)
+            tmux.set_hook('alert-silence',
+                    'run-shell -b "#{@clost} check-for-prompt #{hook_window}"')
 
 
 def get_all():

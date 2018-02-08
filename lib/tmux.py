@@ -1,33 +1,18 @@
-import utils
+import regex
 
-from . import log
+from . import log, utils
 
-control_mode = None
+def run(command, **kwargs):
+    return utils.run_command(['tmux'] + command, **kwargs).stdout.rstrip('\n')
 
-class TmuxError(Exception):
-    pass
 
-def run(command, cm=False, **kwargs):
-    if cm:
-        global control_mode
-        if control_mode is None:
-            control_mode = ControlMode()
-        if isinstance(command, list):
-            command = utils.shlex_join(command)
-            return control_mode.run(command)
-    try:
-        return utils.run_command(['tmux'] + command, **kwargs).stdout
-    except utils.RunError as e:
-        return TmuxError(e.result.stdout + e.result.stderr)
-
-def _truncate_middle(string):
-    string = string.strip('\n')
-    if len(string) <= 40:
-        return string
-    else:
-        return string[:20] + '...' + string[-20:]
-
-def capture_pane(start=None, dump=False, end=None, filename=None, join=False, escape=False):
+def capture_pane(start=None,
+                 dump=False,
+                 end=None,
+                 filename=None,
+                 join=False,
+                 escape=False,
+                 target=None):
     cmd = ['capture-pane']
     if join:
         cmd.append('-J')
@@ -35,36 +20,30 @@ def capture_pane(start=None, dump=False, end=None, filename=None, join=False, es
         cmd.append('-e')
     if dump:
         cmd.append('-p')
+    if target:
+        cmd += ['-t', target]
     if start is not None:
         cmd += ['-S', start]
     if end is not None:
         cmd += ['-E', end]
     return run(cmd)
 
+
 def get_buffer():
     return run(['save-buffer', '-'])
 
-def capture_lines(start=None, filename=None):
-    capture_pane(start=start, join=True)
-    if filename is not None:
-        log.debug('Captured to {}', filename)
-        run(['save-buffer', filename])
-        with open(filename) as f:
-            out = f.read()
-    else:
-        out = get_buffer()
 
-    run(['delete-buffer'])
+def capture_lines(start=None, join=True, **kwargs):
+    out = capture_pane(start=start, dump=True, join=join, **kwargs)
+    rest, last_line = out.rsplit('\n', 1)
 
-    import re
-    m = re.search(r'\n\[ \S+ \].*$', out)
+    m = regex.search(r'\[ \S+ \].*$', last_line)
     if m is not None:
         log.debug('stripping screen/tmux statusline')
-        out = out[:m.start()]
+        out = rest
     out = out.rstrip('\n')
     num_lines = out.count('\n') + 1
-    log.debug('Captured {} lines: "{}"', num_lines,
-                       _truncate_middle(out))
+    log.debug('Captured {} lines: {}', num_lines, repr(utils.shorten(out, 80)))
     return out
 
 
@@ -75,42 +54,46 @@ def insert_text(text, bracketed=False):
         cmd.append('-p')
     run(cmd)
 
+
 def send_keys(keys, literally=False):
     cmd = ['send-keys']
     if literally:
         cmd.append('-l')
     cmd.extend(keys)
     # for some reason send-keys does not work in control mode
-    run(cmd, cm=False)
+    run(cmd)
+
 
 def backspace(count=1):
     send_keys(['BSpace'] * count)
 
-def _display_message(msg, stdout=False):
+
+def display_message(msg, stdout=False, pane=None):
     cmd = ['display-message']
     if stdout:
         cmd.append('-p')
+    if pane:
+        cmd += ['-t', pane]
     cmd.append(msg)
     return run(cmd)
 
-def print_message(msg):
-    return _display_message(msg, stdout=True)
 
-def display_message(msg):
-    _display_message(msg)
+def print_message(msg, **kwargs):
+    return display_message(msg, stdout=True, **kwargs)
 
-def get_variable(var_name):
-    return print_message('#{%s}' % var_name).strip()
 
-def bind_key(key, command, no_prefix=False, key_table=None):
+def get_variable(var_name, **kwargs):
+    return print_message('#{%s}' % var_name, **kwargs).strip()
+
+
+def bind_key(key, command, table=None):
     cmd = ['bind-key']
-    if no_prefix:
-        cmd.append('-n')
-    if key_table:
-        cmd.extend(['-T', key_table])
+    if table:
+        cmd.extend(['-T', table])
     cmd.append(key)
     cmd.extend(command)
     run(cmd)
+
 
 def unbind_key(key=None, all=False, no_prefix=False, key_table=None):
     cmd = ['unbind-key']
@@ -124,11 +107,10 @@ def unbind_key(key=None, all=False, no_prefix=False, key_table=None):
         cmd.append(key)
     run(cmd, ignore_err=r"table .* doesn't exist")
 
+
 def pane_in_mode():
     return get_variable('pane_in_mode') == '1'
 
-def get_option(opt_name):
-    return run(['show-options', '-g', '-v', '-q', opt_name]).strip()
 
 def get_all_options():
     raw = run(['show-options', '-g'])
@@ -143,45 +125,94 @@ def get_all_options():
         res[name] = value
     return res
 
-def set_option(name, value):
-    return run(['set-option', '-g'] + (['-u', name]
-                                        if value is None else [name, value]))
+
+def set_option(name,
+               value,
+               global_=False,
+               window=False,
+               target=None,
+               clost=False):
+    cmd = ['set-option']
+    if global_:
+        cmd += ['-g']
+    if window:
+        cmd += ['-w']
+    if target:
+        cmd += ['-t', target]
+    if clost:
+        name = '@clost_' + name
+
+    if value is None:
+        cmd += ['-u', name]
+    else:
+        cmd += [name, value]
+
+    return run(cmd)
+
+
+def unset_option(name, **kwargs):
+    return set_option(name, None, **kwargs)
+
+
+def get_option(name, global_=False, window=False, target=None, clost=False):
+    cmd = ['show-options', '-v', '-q']
+    if global_:
+        cmd += ['-g']
+    if window:
+        cmd += ['-w']
+    if target:
+        cmd += ['-t', window]
+    if clost:
+        name = '@clost_' + name
+
+    return run(cmd + [name]).strip()
+
+
 def get_env(name):
-    return run(['show-environment', '-g', name]).strip()
+    try:
+        out = run(['show-environment', '-g', name]).strip()
+        return out.split('=', 1)[1]
+    except utils.RunError as err:
+        if (err.result.returncode == 1
+                    and 'unknown variable' in err.result.stderr):
+            return None
+        raise
+
 
 def set_env(name, value):
     return run(['set-environment', '-g', name, value]).strip()
+
 
 def replace_cmd_line(new_text, bracketed=False):
     send_keys(['C-e', 'C-u'])
     insert_text(new_text, bracketed=bracketed)
 
-class ControlModeError(Exception):
-    pass
 
-class ControlMode(object):
-    REGEX = '%begin \d+ \d+ \d+\r\n(.+?\r\n)?%(error|end) \d+ \d+ \d+\r\n'
+def list_panes(session=False, target=None):
+    cmd = ['list-panes', '-F', '#{pane_id}']
+    if target:
+        cmd += ['-t', target]
+    out = run(cmd)
+    lines = out.splitlines()
+    return lines
 
-    def __init__(self):
-        import pexpect
-        self.spawn = pexpect.spawn('tmux -C')
-        self.spawn.delaybeforesend = None
-        self.spawn.delayafterread = None
-        # skip empty output
-        self.spawn.expect(self.REGEX)
 
-    def run(self, cmd):
-        log.debug('Running in Tmux control mode: {}', cmd)
-        self.spawn.sendline(cmd)
-        self.spawn.expect(self.REGEX)
-        m = self.spawn.match
-        out = m.group(1)
-        if out is None:
-            out = ''
-        out = out.replace('\r\n', '\n')
-        if m.group(2) == 'error':
-            raise TmuxError(out)
-        else:
-            return out
+# TODO: not used
+def list_windows(fields=['window_id']):
+    fmt_str = '\t'.join(['#{%s}' % f for f in fields])
+    cmd = ['list-windows', '-F', fmt_str]
+    out = run(cmd)
+    lines = out.splitlines()
+    return [tuple(line.split('\t')) for line in lines]
+
+
+def set_hook(hook, command, global_=False, session=None):
+    cmd = ['set-hook']
+    if global_:
+        cmd += ['-g']
+    if session:
+        cmd += ['-t', session]
+    cmd += [hook, command]
+    return run(cmd)
 
 
