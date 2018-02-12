@@ -357,14 +357,10 @@ class check_for_prompt(Command):
 class configure(Command):
     requires_context = False
 
-    def _bind_cmd(self, key, cmd, **kwargs):
-        tmux.set_option('@clost', env.exec_path, global_=True)
-        return tmux.bind_key(key, ['run-shell', '-b', '#{@clost} ' + cmd], **kwargs)
-
     def run(self):
         if config.options['intercept_enter']:
             tmux.bind_key('Enter', ['send-keys', 'Enter'])
-            self._bind_cmd('Enter', 'press-enter', table='root')
+            split.bind_enter()
 
         if config.options['allow_wait_for_prompt']:
             tmux.set_option('silence-action', 'any', global_=True)

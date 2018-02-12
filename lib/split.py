@@ -45,12 +45,30 @@ def _temp_fifo(name):
     yield path
     os.unlink(path)
 
+def bind_cmd(key, cmd, **kwargs):
+    tmux.set_option('@clost', env.exec_path, global_=True)
+    return tmux.bind_key(key, ['run-shell', '-b', '#{@clost} ' + cmd], **kwargs)
+
+def bind_enter():
+    bind_cmd('Enter', 'press-enter', table='root')
+
+
+@contextlib.contextmanager
+def temporarily_unbind_enter():
+    if not config.options['intercept_enter']:
+        yield
+    else:
+        tmux.unbind_key('Enter', no_prefix=True)
+        yield
+        bind_enter()
+
 
 def run_in_split_window(shell_cmd, capture_output=False):
     CHANNEL = 'clost'
 
     with _temp_fifo('split.output') as output_fifo, \
-            _temp_fifo('split.returncode') as return_fifo:
+            _temp_fifo('split.returncode') as return_fifo, \
+            temporarily_unbind_enter():
         if capture_output:
             shell_cmd += ' > ' + output_fifo
         # trap "tmux wait-for -S {CHANNEL}" 0
