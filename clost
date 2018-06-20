@@ -8,7 +8,7 @@ import os
 
 from lib.environment import env
 from lib.config import config
-from lib import log, tmux, command,context, common
+from lib import log, tmux, command, context, common
 
 
 def acquire_lock():
@@ -33,6 +33,11 @@ def handle_cmd(cmd_args):
     log.info('Finished')
 
 
+def main_args(parser):
+    env.add_args(parser)
+    parser.add_argument('-d', '--debug', action='store_true')
+
+
 def parse_cmd_args():
     parser = argparse.ArgumentParser()
 
@@ -40,8 +45,7 @@ def parse_cmd_args():
     parser.add_argument('-d', '--debug', action='store_true')
     # TODO: reenable
     subparsers = parser.add_subparsers()
-    for cmd_class in command.get_all():
-        cmd_class.add_subparser(subparsers)
+    command.populate_subparsers(subparsers)
 
     return parser.parse_args()
 

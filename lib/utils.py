@@ -26,6 +26,10 @@ def count_lines(s):
     return s.count('\n') + 1
 
 
+def single_to_list(x):
+    return x if isinstance(x, list) else [] if x is None else [x]
+
+
 class RunResult(object):
     def __init__(self, stdout='', stderr='', returncode=0):
         self.stdout = stdout

@@ -3,18 +3,17 @@ import re
 import inspect
 import sys
 import json
+import argparse
 
 from .environment import env
 from .config import config
 from . import (alias, tmux, log, history, common, utils, output,
                clipboard, context, split)
 
-def single_to_list(x):
-    return x if isinstance(x, list) else [] if x is None else [x]
-
 class Command(object):
     requires_context = True
     silent_no_context = False
+    server_side = True
     opt_arg_defs = []
     pos_arg_defs = []
 
@@ -58,7 +57,7 @@ class Command(object):
             subparser.add_argument(arg_name, type=arg_type, help=arg_help)
 
     def strip_suggestion(self):
-        escape_code_list = single_to_list(
+        escape_code_list = utils.single_to_list(
             self.get_option('suggestion_color_escape_code'))
         if not escape_code_list:
             return
@@ -368,6 +367,37 @@ class configure(Command):
                     'run-shell -b "#{@clost} check-for-prompt #{hook_window}"')
 
 
-def get_all():
+def _list_commands():
     return [x for x in globals().itervalues()
             if inspect.isclass(x) and issubclass(x, Command) and x != Command]
+
+
+def populate_subparsers(subparsers):
+    for cmd_class in _list_commands():
+        cmd_class.add_subparser(subparsers)
+
+
+def parse_command(args=None, modify=None, server_side=False):
+    parser = argparse.ArgumentParser(add_help=(modify is not None))
+    if modify:
+        modify(parser)
+    subparsers = parser.add_subparsers()
+    populate_subparsers(subparsers)
+    return parser.parse_args(args=args)
+
+
+def handle_command(cmd_args):
+    ctx = None
+    if cmd_args.cmd_class.requires_context:
+        ctx = context.get_current()
+        if ctx is None:
+            if not cmd_args.cmd_class.silent_no_context:
+                raise common.ClostError('Could not detect context')
+    cmd = cmd_args.cmd_class()
+    cmd.init(ctx, vars(cmd_args))
+    if ctx:
+        cmd.strip_suggestion()
+    cmd.run()
+
+
+
