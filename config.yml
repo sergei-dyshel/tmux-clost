@@ -7,6 +7,11 @@ options:
     output_file: $work_dir/output.txt
     allow_wait_for_prompt: yes
     wait_for_prompt_monitor_interval: 3
+    selector: fzf
+commands:
+    search_history:
+        selector: fzf --no-sort
+
 contexts:
     - name: bash
       patterns:

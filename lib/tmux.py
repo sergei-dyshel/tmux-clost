@@ -41,9 +41,9 @@ def capture_lines(start=None, join=True, **kwargs):
     if m is not None:
         log.debug('stripping screen/tmux statusline')
         out = rest
-    out = out.rstrip('\n')
+    out = out.rstrip()
     num_lines = out.count('\n') + 1
-    log.debug('Captured {} lines: {}', num_lines, repr(utils.shorten(out, 80)))
+    log.debug('Captured {} lines: {}', num_lines, repr(utils.shorten(out, 4096)))
     return out
 
 

@@ -1,5 +1,6 @@
 import os
 import os.path
+import collections
 
 
 from .environment import env
@@ -13,15 +14,18 @@ global_options = None
 class Config(object):
     options = {}
     contexts = []
+    commands = collections.defaultdict(dict)
+    contexts_by_name = {}
 
     def _add_context(self, context, is_user):
-        ctx_names = [ctx['name'] for ctx in self.contexts]
-        if context['name'] in ctx_names:
+        if context['name'] in self.contexts_by_name:
             if is_user:
                 log.warning('Context {} repeats in user config', context['name'])
             return
         context['options'] = context.get('options', {})
+        context['commands'] = context.get('commands', {})
         self.contexts.append(context)
+        self.contexts_by_name[context['name']] = context
 
     def read(self):
         import yaml
@@ -41,6 +45,9 @@ class Config(object):
 
         self.options = default_cfg.get('options', {})
         self.options.update(user_cfg.get('options', {}))
+        for cfg in [default_cfg, user_cfg]:
+            for cmd_name, cmd_opts in cfg.get('commands', {}).iteritems():
+                self.commands[cmd_name].update(cmd_opts)
 
         for ctx in user_cfg.get('contexts', []):
             self._add_context(ctx, is_user=True)

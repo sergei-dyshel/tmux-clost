@@ -20,6 +20,10 @@ class Command(object):
     def init(self, ctx, args):
         self.ctx = ctx
         self.args = args
+        self.options = config.options
+        self.options.update(config.commands.get(self.name(), {}))
+        if ctx:
+            self.options.update(ctx.commands.get(self.name(), {}))
 
     def run(self):
         raise NotImplementedError
@@ -28,6 +32,7 @@ class Command(object):
         try:
             return self.args[opt_name]
         except KeyError:
+            return self.options[opt_name]
             try:
                 return self.ctx.options[opt_name]
             except KeyError:
@@ -145,7 +150,7 @@ class search_history(Command):
         if cmd_line:
             escaped = cmd_line.replace('"', r'\"')
             cmd = cmd + '| grep -F -- "{}"'.format(escaped)
-        line = split.select_split_pipe(cmd)
+        line = split.select_split_pipe(cmd, self.get_option('selector'))
         if line:
             tmux.replace_cmd_line(
                 line, bracketed=self.get_option('bracketed_paste'))
@@ -197,7 +202,8 @@ class insert_snippet(Command):
             return
         snippet_names = os.listdir(ctx_snippets_dir)
 
-        snippet_name = split.select_split(snippet_names)
+        snippet_name = split.select_split(snippet_names,
+                                          self.get_option('selector'))
         if not snippet_name:
             return
 
@@ -366,14 +372,54 @@ class configure(Command):
             tmux.set_hook('alert-silence',
                     'run-shell -b "#{@clost} check-for-prompt #{hook_window}"')
 
+class list_options(Command):
+    requires_context = False
+    opt_arg_defs = [('command', str, 'TODO'), ('context', str, 'TODO')]
+
+    def run(self):
+        ctx_name = self.args['context']
+        cmd_name = self.args['command']
+        ctx = None
+        if ctx_name is not None:
+            try:
+                ctx = context.Context(cfg=config.contexts_by_name[ctx_name])
+            except KeyError:
+                raise Exception('Invalid context {}'.format(ctx_name))
+
+        cmd = None
+        if cmd_name is not None:
+            try:
+                cmd_class = _list_commands()[cmd_name]
+            except KeyError:
+                raise common.ClostError('Invalid command {}'.format(cmd_name))
+            cmd = cmd_class()
+            cmd.init(ctx, {})
+
+        if ctx is not None and cmd is not None:
+            options = cmd.options
+            print "Context '{}' options for command '{}':".format(
+                    ctx_name, cmd_name)
+        elif ctx is not None:
+            options = ctx.options
+            print "Context '{}' options:".format(ctx_name)
+        elif cmd is not None:
+            options = cmd.options
+            print "Command '{}' options:".format(cmd_name)
+        else:
+            options = config.options
+            print "Global options:"
+
+        json.dump(options, sys.stdout, indent=4)
+        print
+
 
 def _list_commands():
-    return [x for x in globals().itervalues()
-            if inspect.isclass(x) and issubclass(x, Command) and x != Command]
+    return {x.name(): x for x in globals().itervalues()
+            if inspect.isclass(x) and issubclass(x, Command) and x != Command}
 
 
 def populate_subparsers(subparsers):
-    for cmd_class in _list_commands():
+    for cmd_class in _list_commands().values():
         cmd_class.add_subparser(subparsers)
 
 
@@ -386,6 +432,7 @@ def parse_command(args=None, modify=None, server_side=False):
     return parser.parse_args(args=args)
 
 
+#TODO: not used
 def handle_command(cmd_args):
     ctx = None
     if cmd_args.cmd_class.requires_context:

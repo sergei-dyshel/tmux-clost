@@ -1,4 +1,5 @@
 import regex
+import collections
 
 from .config import config
 from . import log, tmux, common
@@ -15,6 +16,8 @@ class Context(object):
         self.match = match
         self.options = config.options.copy()
         self.options.update(cfg['options'])
+        self.commands = cfg.get('options', {})
+
 
     @property
     def name(self):

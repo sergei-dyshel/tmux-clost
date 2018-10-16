@@ -97,20 +97,21 @@ def run_in_split_window(shell_cmd, capture_output=False):
             return returncode
 
 
-def select_split_pipe(cmd):
+def select_split_pipe(cmd, selector):
     res = run_in_split_window(
-            '{} | fzf --no-sort'.format(cmd), capture_output=True)
+            '{} | {}'.format(cmd, selector), capture_output=True)
     if res.returncode == 0:
         return res.stdout
     elif res.returncode == 130:
         return ''
     else:
-        log.error('fzf returned unexpected output: \n' + res.stdout)
-        raise Exception('fzf returned unexpected output')
+        log.error('selector {} returned unexpected output: \n{}'.format(
+                selector, res.stdout))
+        raise Exception('selector {} returned unexpected output'.format(selector))
 
-def select_split(lines):
+def select_split(lines, selector):
     lines_file = env.temp_file_path('selector.lines')
     with open(lines_file, 'w') as f:
         f.write('\n'.join(map(str.strip, lines)))
-    return select_split_pipe('cat {}'.format(lines_file))
+    return select_split_pipe('cat {}'.format(lines_file), selector)
 
