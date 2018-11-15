@@ -48,6 +48,7 @@ def capture_lines(start=None, join=True, **kwargs):
 
 
 def insert_text(text, bracketed=False):
+    log.debug('Inserting text: {}'.format(repr(utils.shorten(text, 40))))
     run(['load-buffer', '-'], input=text)
     cmd = ['paste-buffer', '-d', '-r']
     if bracketed:

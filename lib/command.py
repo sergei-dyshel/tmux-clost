@@ -8,7 +8,7 @@ import argparse
 from .environment import env
 from .config import config
 from . import (alias, tmux, log, history, common, utils, output,
-               clipboard, context, split)
+               clipboard, context, split, snippet)
 
 class Command(object):
     requires_context = True
@@ -207,9 +207,11 @@ class insert_snippet(Command):
         if not snippet_name:
             return
 
-        with open(os.path.join(ctx_snippets_dir, snippet_name), 'rb+') as f:
-            tmux.insert_text(
-                f.read()[:-1], bracketed=self.get_option('bracketed_paste'))
+        snippet.insert_snippet(snippets_dir, self.ctx.name, snippet_name,
+                               self.get_option('bracketed_paste'))
+        # with open(os.path.join(ctx_snippets_dir, snippet_name), 'rb+') as f:
+        #     tmux.insert_text(
+        #         f.read()[:-1], bracketed=self.get_option('bracketed_paste'))
 
 class edit_cmd(Command):
     def run(self):
@@ -445,6 +447,3 @@ def handle_command(cmd_args):
     if ctx:
         cmd.strip_suggestion()
     cmd.run()
-
-
-
