@@ -60,7 +60,8 @@ def main():
     if sys.stdin.isatty() or cmd_args.debug:
         log_file = None
     else:
-        log_file = os.path.join(env.vars['work_dir'], 'all.log')
+        log_file = os.path.join(env.vars['work_dir'],
+                                'all.{}.log'.format(os.uname()[1]))
     log.configure(log_file)
 
     log.info('Running with arguments {}', sys.argv[1:])

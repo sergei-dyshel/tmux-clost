@@ -308,36 +308,36 @@ class sleep(Command):
 
 class wait_for_prompt(Command):
     requires_context = False
-    pos_arg_defs = [('cmd', str, 'Command to run')]
+    opt_arg_defs = [('window_id', str,
+                     'ID of window on which silence occured')]
 
     def run(self):
+        if self.args['window_id']:
+            return self._check_prompt()
+        if tmux.get_option(
+                'wait_for_prompt_pane', clost=True, window=True):
+                log.info('Already waiting for prompt, disabling...')
+                return self._disable_waiting()
         tmux.set_option(
                 'wait_for_prompt_pane',
                 tmux.get_variable('pane_id'),
                 clost=True,
                 window=True)
         tmux.set_option(
-                'wait_for_prompt_cmd',
-                self.args['cmd'],
-                clost=True,
+                'monitor-silence',
+                self.get_option('monitor_interval'),
                 window=True)
-        tmux.set_option('monitor-silence',
-                        config.options['wait_for_prompt_monitor_interval'])
-
-
-class check_for_prompt(Command):
-    requires_context = False
-    pos_arg_defs = [('window_id', str,
-                     'ID of window on which silence occured')]
+        tmux.set_option('visual-silence', 'off', window=True)
+        tmux.set_option('silence-action', 'any', window=True)
+        tmux.set_hook('alert-silence',
+                    'run-shell -b "#{@clost} wait-for-prompt --window-id #{hook_window}"')
 
     def _disable_waiting(self, target=None):
         tmux.set_option('monitor-silence', 0, window=True, target=target)
         tmux.set_option('wait_for_prompt_pane', None,
                 clost=True, window=True, target=target)
-        tmux.set_option('wait_for_prompt_cmd', None,
-                clost=True, window=True, target=target)
 
-    def run(self):
+    def _check_prompt(self):
         win_id = self.args['window_id']
         pane_id = tmux.get_option(
                 'wait_for_prompt_pane', clost=True, window=True)
@@ -349,8 +349,7 @@ class check_for_prompt(Command):
             self._disable_monitor(target=win_id)
         elif context.get_current(target=pane_id):
             log.info('Pane reached prompt')
-            cmd = tmux.get_option(
-                    'wait_for_prompt_cmd', clost=True, window=True)
+            cmd = self.get_option('command')
             env = dict(
                     TMUX_WINDOW=tmux.get_variable('window_name', pane=pane_id))
             utils.run_command(cmd, shell=True, env=env, pipe=True)
@@ -369,10 +368,6 @@ class configure(Command):
             tmux.bind_key('Enter', ['send-keys', 'Enter'])
             split.bind_enter()
 
-        if config.options['allow_wait_for_prompt']:
-            tmux.set_option('silence-action', 'any', global_=True)
-            tmux.set_hook('alert-silence',
-                    'run-shell -b "#{@clost} check-for-prompt #{hook_window}"')
 
 class list_options(Command):
     requires_context = False
