@@ -162,7 +162,7 @@ def get_option(name, global_=False, window=False, target=None, clost=False):
     if window:
         cmd += ['-w']
     if target:
-        cmd += ['-t', window]
+        cmd += ['-t', target]
     if clost:
         name = '@clost_' + name
 

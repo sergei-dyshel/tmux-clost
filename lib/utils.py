@@ -3,6 +3,7 @@ import re
 import pipes
 import os
 import time
+import shlex
 
 from . import log
 
@@ -64,7 +65,7 @@ def run_command(command,
         cmd_str = '"{}"'.format(command)
     else:
         command = map(str, command)
-        cmd_str = str(command)
+        cmd_str = shlex_join(command)
     log.debug('Running ' + cmd_str)
 
     if env:

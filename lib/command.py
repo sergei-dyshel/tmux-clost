@@ -316,8 +316,8 @@ class wait_for_prompt(Command):
             return self._check_prompt()
         if tmux.get_option(
                 'wait_for_prompt_pane', clost=True, window=True):
-                log.info('Already waiting for prompt, disabling...')
-                return self._disable_waiting()
+            log.info('Already waiting for prompt, disabling...')
+            return self._disable_waiting()
         tmux.set_option(
                 'wait_for_prompt_pane',
                 tmux.get_variable('pane_id'),
@@ -340,13 +340,16 @@ class wait_for_prompt(Command):
     def _check_prompt(self):
         win_id = self.args['window_id']
         pane_id = tmux.get_option(
-                'wait_for_prompt_pane', clost=True, window=True)
+                'wait_for_prompt_pane', clost=True, window=True, target=win_id)
 
         if not pane_id:
             log.warning('Not waiting for prompt in this window')
-        elif pane_id not in tmux.list_panes(target=win_id):
-            log.warning('The pane waiting for prompt no longer belongs to this window')
-            self._disable_monitor(target=win_id)
+            return
+        win_panes = tmux.list_panes(target=win_id)
+        if pane_id not in win_panes:
+            log.warning(
+                    'The pane waiting for prompt no longer belongs to this window (waiting pane {}, window panes {})',
+                    pane_id, win_panes)
         elif context.get_current(target=pane_id):
             log.info('Pane reached prompt')
             cmd = self.get_option('command')
