@@ -35,12 +35,13 @@ def get_buffer():
 
 def capture_lines(start=None, join=True, **kwargs):
     out = capture_pane(start=start, dump=True, join=join, **kwargs)
-    rest, last_line = out.rsplit('\n', 1)
+    lines = out.rsplit('\n', 1)
 
-    m = regex.search(r'\[ \S+ \].*$', last_line)
-    if m is not None:
-        log.debug('stripping screen/tmux statusline')
-        out = rest
+    if len(lines) > 1:
+        m = regex.search(r'\[ \S+ \].*$', lines[1])
+        if m is not None:
+            log.debug('stripping screen/tmux statusline')
+            out = lines[0]
     out = out.rstrip()
     num_lines = out.count('\n') + 1
     log.debug('Captured {} lines: {}', num_lines, repr(utils.shorten(out, 4096)))

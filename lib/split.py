@@ -105,8 +105,8 @@ def select_split_pipe(cmd, selector):
     elif res.returncode == 130:
         return ''
     else:
-        log.error('selector {} returned unexpected output: \n{}'.format(
-                selector, res.stdout))
+        log.error('selector {} returned {} with stdout:\n{}\nstderr:\n{}'.format(
+                selector, res.returncode, res.stdout, res.stderr))
         raise Exception('selector {} returned unexpected output'.format(selector))
 
 def select_split(lines, selector):
