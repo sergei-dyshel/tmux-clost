@@ -4,6 +4,8 @@ import inspect
 import sys
 import json
 import argparse
+import shlex
+import pipes
 
 from .environment import env
 from .config import config
@@ -214,10 +216,16 @@ class insert_snippet(Command):
         #         f.read()[:-1], bracketed=self.get_option('bracketed_paste'))
 
 class edit_cmd(Command):
+    def preprocess(self, text):
+        return text
+
+    def postprocess(self, text):
+        return text
+
     def run(self):
         cmd_file = env.temp_file_path('cmd.txt')
         with open(cmd_file, 'w') as f:
-            f.write(self.ctx.cmd_line)
+            f.write(self.preprocess(self.ctx.cmd_line))
         # editor = common.get_config()['editor']
         # editor = environment.expand_path(config.get_option('editor'))
         editor = self.get_option('editor')
@@ -229,12 +237,20 @@ class edit_cmd(Command):
                 res)
             return
         with open(cmd_file) as f:
-            new_cmd = f.read().strip()
+            new_cmd = self.postprocess(f.read().strip())
             if new_cmd == self.ctx.cmd_line:
                 log.info('Command line not changed during editing')
             else:
                 tmux.replace_cmd_line(
                         new_cmd, bracketed=self.get_option('bracketed_paste'))
+
+
+class splitlines_edit_cmd(edit_cmd):
+    def preprocess(self, text):
+        return '\n'.join(shlex.split(text))
+
+    def postprocess(self, text):
+        return ' '.join([pipes.quote(s) for s in text.splitlines()])
 
 
 class show_context(Command):
